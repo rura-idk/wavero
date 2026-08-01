@@ -2,8 +2,17 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "wavero-api",
   "main": "worker.js",
-  "compatibility_date": "2026-07-31",
+  "compatibility_date": "2026-08-01",
   "keep_vars": true,
+  "rules": [
+    {
+      "type": "Text",
+      "globs": [
+        "**/*.html"
+      ],
+      "fallthrough": true
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

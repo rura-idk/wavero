@@ -1,3 +1,5 @@
+import indexHtml from "./index.html";
+
 const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +22,7 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "0.6.3",
+          version: "0.7.0",
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
           databaseConfigured: Boolean(env.DB),
         });
@@ -95,6 +97,16 @@ export default {
 
       if (messageMatch && request.method === "DELETE") {
         return deleteMessage(request, env, decodeURIComponent(messageMatch[1]));
+      }
+
+      const isApiPath =
+        url.pathname.startsWith("/api/") ||
+        url.pathname.startsWith("/mobile/") ||
+        url.pathname === "/directory" ||
+        url.pathname === "/health";
+
+      if (request.method === "GET" && !isApiPath) {
+        return html(indexHtml);
       }
 
       return json({ ok: false, error: "Маршрут не найден." }, 404);
@@ -532,19 +544,28 @@ function escapeLike(value) {
 async function createOrOpenDirectChat(request, env) {
   const currentUser = await authenticatedD1User(request, env);
   const body = await readJson(request);
+  const targetUserId = clean(body.target_user_id);
   const targetUsername = clean(body.username).toLowerCase();
 
-  if (!targetUsername) {
+  if (!targetUserId && !targetUsername) {
     throw new ApiError(400, "Не указан пользователь.");
   }
 
-  const target = await env.DB.prepare(`
-    SELECT id, username, display_name
-    FROM users
-    WHERE LOWER(COALESCE(username_normalized, username)) = ?1
-      AND COALESCE(status, 'active') = 'active'
-    LIMIT 1
-  `).bind(targetUsername).first();
+  const target = targetUserId
+    ? await env.DB.prepare(`
+        SELECT id, username, display_name
+        FROM users
+        WHERE id = ?1
+          AND COALESCE(status, 'active') = 'active'
+        LIMIT 1
+      `).bind(targetUserId).first()
+    : await env.DB.prepare(`
+        SELECT id, username, display_name
+        FROM users
+        WHERE LOWER(COALESCE(username_normalized, username)) = ?1
+          AND COALESCE(status, 'active') = 'active'
+        LIMIT 1
+      `).bind(targetUsername).first();
 
   return createOrFindDirectChat(env, currentUser, target);
 }
@@ -1074,6 +1095,18 @@ class ApiError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+function html(content, status = 200) {
+  return new Response(content, {
+    status,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store, max-age=0",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+    },
+  });
 }
 
 function json(data, status = 200) {

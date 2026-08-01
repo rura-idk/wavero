@@ -1,7 +1,8 @@
 {
-  "name": "wavero-api",
-  "version": "0.6.3",
+  "name": "wavero",
+  "version": "0.7.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
     "check": "node --check worker.js"

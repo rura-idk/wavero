@@ -1,0 +1,1324 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Wavero</title>
+  <meta name="wavero-build" content="0.7.0-same-origin">
+  <style>
+    :root {
+      --bg:#050505; --surface:#0c0c0c; --surface2:#111; --line:#242424;
+      --text:#f5f5f5; --muted:#8b8b8b; --soft:#c9c9c9; --danger:#ff6b6b;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:var(--bg);color:var(--text)}
+    .page{min-height:100vh;display:grid;grid-template-columns:minmax(320px,1fr) minmax(420px,560px)}
+    .intro{padding:clamp(36px,6vw,88px);display:flex;flex-direction:column;justify-content:space-between;border-right:1px solid var(--line);position:relative;overflow:hidden}
+    .intro:after{content:"";position:absolute;right:-160px;bottom:-180px;width:500px;height:500px;border:1px solid #202020;border-radius:50%;box-shadow:0 0 0 70px #090909,0 0 0 71px #1c1c1c,0 0 0 140px #070707}
+    .logo{font-weight:750;letter-spacing:-.04em;font-size:26px;z-index:1}
+    .statement{z-index:1;max-width:720px}
+    .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+    h1{font-size:clamp(54px,8vw,118px);line-height:.88;letter-spacing:-.075em;margin:0;font-weight:650}
+    .lead{max-width:520px;color:var(--muted);font-size:17px;line-height:1.65;margin-top:32px}
+    .foot{z-index:1;color:#555;font-size:12px}
+    .auth{padding:clamp(28px,5vw,72px);display:flex;align-items:center;background:var(--surface)}
+    .card{width:100%;max-width:430px;margin:auto}
+    .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);margin-bottom:38px}
+    .tab{appearance:none;border:0;background:none;color:#666;padding:0 0 15px;cursor:pointer;font:inherit;font-weight:600;position:relative}
+    .tab.active{color:#fff}
+    .tab.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:#fff}
+    form{display:grid;gap:18px}
+    label{display:grid;gap:8px;color:#9b9b9b;font-size:12px;letter-spacing:.02em}
+    input{width:100%;border:1px solid var(--line);background:#090909;color:#fff;border-radius:10px;padding:15px 16px;font:inherit;outline:none;transition:.18s}
+    input:focus{border-color:#707070;background:#0b0b0b}
+    input::placeholder{color:#454545}
+    .password-wrap{position:relative}
+    .password-wrap input{padding-right:52px}
+    .password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;background:transparent;color:#777;display:grid;place-items:center;cursor:pointer;border-radius:8px}
+    .password-toggle:hover,.password-toggle:focus-visible{color:#fff;background:#171717;outline:none}
+    .password-toggle svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .password-rules{display:grid;gap:7px;margin-top:2px;padding:0 2px}
+    .password-rule{display:flex;align-items:center;gap:8px;color:#666;font-size:12px;line-height:1.35;transition:.18s}
+    .password-rule:before{content:"";width:5px;height:5px;border:1px solid #555;border-radius:50%;flex:0 0 auto}
+    .password-rule.valid{color:#cfcfcf}
+    .password-rule.valid:before{background:#fff;border-color:#fff}
+    .field-error{color:var(--danger);font-size:12px;line-height:1.4;min-height:0;margin-top:2px}
+    .input-error{border-color:#743b3b!important;box-shadow:0 0 0 3px rgba(255,107,107,.07)}
+    .notice{display:none;margin-bottom:28px;padding:22px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+    .notice.visible{display:block}
+    .notice-title{font-size:28px;line-height:1.05;letter-spacing:-.04em;font-weight:650;margin:0 0 8px}
+    .notice-text{color:var(--muted);font-size:14px;line-height:1.55;margin:0}
+    .notice.error .notice-title{color:var(--danger)}
+    .notice.ok .notice-title{color:#fff}
+    .field-hint{color:#5f5f5f;font-size:11px;line-height:1.4;margin-top:1px}
+    .primary{border:1px solid #fff;background:#fff;color:#050505;border-radius:10px;padding:15px 18px;font:inherit;font-weight:700;cursor:pointer;transition:.18s;margin-top:4px}
+    .primary:hover{background:#dcdcdc;border-color:#dcdcdc}
+    button:disabled{opacity:.45;cursor:wait}
+    .link{border:0;background:none;color:#aaa;text-align:left;padding:0;cursor:pointer;font:inherit;font-size:13px;width:max-content}
+    .link:hover{color:#fff}
+    .message{min-height:24px;color:var(--muted);line-height:1.5;font-size:13px;margin-top:20px}
+    .message.error{color:var(--danger)}
+    .message.ok{color:#fff}
+    .hidden{display:none!important}
+    .profile{border:1px solid var(--line);border-radius:16px;padding:28px;background:#090909}
+    .profile h2{margin:0 0 8px;font-size:26px;letter-spacing:-.04em}
+    .profile .username{color:var(--muted);margin-bottom:24px}
+    .profile .email{border-top:1px solid var(--line);padding-top:18px;color:var(--soft);word-break:break-all}
+    .outline{width:100%;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:10px;padding:13px 16px;margin-top:24px;cursor:pointer}
+    body.light{
+      --bg:#f3f3f1;--surface:#fff;--surface2:#f7f7f5;--line:#deded9;
+      --text:#111;--muted:#74746f;--soft:#333;--danger:#c62828;
+    }
+    body.light .intro{background:#f6f6f3}
+    body.light input{background:#fff;color:#111}
+    body.light .primary{background:#111;color:#fff;border-color:#111}
+    body.light .primary:hover{background:#333;border-color:#333}
+    body.light .profile,body.light .messenger{background:#fff}
+    .messenger{position:fixed;inset:0;background:var(--bg);display:grid;grid-template-columns:340px 1fr;color:var(--text)}
+    .sidebar{border-right:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-width:0}
+    .sidebar-head{height:74px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+    .sidebar-brand{font-size:22px;font-weight:750;letter-spacing:-.04em}
+    .icon-button{width:40px;height:40px;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:12px;cursor:pointer;display:grid;place-items:center}
+    .icon-button:hover{background:var(--surface2)}
+    .text-button{height:40px;padding:0 13px;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:12px;cursor:pointer;font:inherit;font-size:13px;font-weight:650}
+    .text-button:hover{background:var(--surface2)}
+    .chat-list{overflow:auto;flex:1;padding:10px}
+    .search-sheet{position:fixed;inset:0;background:rgba(0,0,0,.48);display:grid;place-items:center;padding:20px;z-index:30}
+    .search-panel{width:min(520px,100%);max-height:min(680px,90vh);background:var(--surface);border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 24px 90px rgba(0,0,0,.3)}
+    .search-head{padding:18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+    .search-head input{flex:1}
+    .search-results{padding:10px;overflow:auto;max-height:500px}
+    .user-result{width:100%;border:0;background:transparent;color:var(--text);padding:13px;border-radius:14px;display:grid;grid-template-columns:46px 1fr auto;align-items:center;gap:12px;text-align:left;cursor:pointer}
+    .user-result:hover{background:var(--surface2)}
+    .user-result-name{font-weight:700}
+    .user-result-login{font-size:13px;color:var(--muted);margin-top:3px}
+    .start-label{font-size:12px;color:var(--muted)}
+    :root{--ease:cubic-bezier(.22,1,.36,1);--fast:180ms;--normal:320ms;--slow:520ms}
+    body,*{scroll-behavior:smooth}
+    body{transition:background-color var(--slow) var(--ease),color var(--slow) var(--ease)}
+    .sidebar,.main-chat,.chat-head,.composer,.search-panel,.chat-row,.bubble,input,.icon-button,.text-button,.send-button{
+      transition:
+        background-color var(--normal) var(--ease),
+        color var(--normal) var(--ease),
+        border-color var(--normal) var(--ease),
+        box-shadow var(--normal) var(--ease),
+        transform var(--fast) var(--ease),
+        opacity var(--fast) var(--ease);
+    }
+    .messenger{animation:appEnter var(--slow) var(--ease) both}
+    .messenger.leaving{animation:appLeave var(--normal) var(--ease) both}
+    .chat-row{animation:listItemIn 360ms var(--ease) both}
+    .chat-row:active,.icon-button:active,.text-button:active,.send-button:active{transform:scale(.96)}
+    .chat-row.active{transform:translateX(3px)}
+    .bubble{animation:bubbleIn 300ms var(--ease) both;transform-origin:left bottom}
+    .bubble.mine{transform-origin:right bottom}
+    .search-sheet{animation:fadeIn 220ms ease both}
+    .search-sheet.closing{animation:fadeOut 180ms ease both}
+    .search-panel{animation:sheetIn 360ms var(--ease) both}
+    .search-sheet.closing .search-panel{animation:sheetOut 180ms ease both}
+    .user-result{animation:listItemIn 280ms var(--ease) both}
+    .theme-flash{position:fixed;inset:0;pointer-events:none;z-index:100;background:var(--bg);animation:themeFlash 480ms var(--ease) both}
+    .main-chat.chat-transition{animation:chatEnter 360ms var(--ease) both}
+    .messages.refreshing{opacity:.7}
+    @keyframes appEnter{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
+    @keyframes appLeave{from{opacity:1;transform:none}to{opacity:0;transform:scale(.985)}}
+    @keyframes listItemIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    @keyframes bubbleIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes fadeOut{from{opacity:1}to{opacity:0}}
+    @keyframes sheetIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:none}}
+    @keyframes sheetOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(12px) scale(.98)}}
+    @keyframes themeFlash{0%{opacity:0}35%{opacity:.22}100%{opacity:0}}
+    @keyframes chatEnter{from{opacity:.45;transform:translateX(12px)}to{opacity:1;transform:none}}
+    @keyframes toastIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+    @keyframes toastOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(8px) scale(.98)}}
+    @media(prefers-reduced-motion:reduce){
+      *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+    }
+    .chat-row{width:100%;border:0;background:transparent;color:var(--text);padding:13px;border-radius:14px;display:grid;grid-template-columns:46px 1fr;gap:12px;text-align:left;cursor:pointer}
+    .chat-row:hover,.chat-row.active{background:var(--surface2)}
+    .avatar{width:46px;height:46px;border-radius:50%;background:var(--text);color:var(--bg);display:grid;place-items:center;font-weight:800}
+    .chat-copy{min-width:0}
+    .chat-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .chat-preview{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+    .main-chat{display:grid;grid-template-rows:74px 1fr auto;min-width:0;background:var(--bg)}
+    .chat-head{border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:var(--surface)}
+    .chat-head-title{font-weight:750}
+    .chat-head-sub{font-size:12px;color:var(--muted);margin-top:3px}
+    .messages{overflow:auto;padding:28px max(20px,5vw);display:flex;flex-direction:column;gap:12px}
+    .bubble{max-width:min(680px,82%);padding:11px 14px;border:1px solid var(--line);border-radius:16px;background:var(--surface);align-self:flex-start}
+    .bubble.mine{align-self:flex-end;background:var(--text);color:var(--bg);border-color:var(--text)}
+    .bubble-author{font-size:12px;font-weight:700;margin-bottom:5px;color:var(--muted)}
+    .bubble.mine .bubble-author{display:none}
+    .bubble-time{font-size:10px;opacity:.55;margin-top:6px;text-align:right;display:flex;justify-content:flex-end;align-items:center;gap:7px}
+    .edited-label{opacity:.8}
+    .message-actions{border:0;background:transparent;color:inherit;opacity:.55;width:24px;height:24px;border-radius:8px;cursor:pointer;display:grid;place-items:center;font-size:16px;line-height:1}
+    .message-actions:hover,.message-actions:focus-visible{opacity:1;background:rgba(127,127,127,.16);outline:none}
+    .sheet-actions{display:grid;gap:8px;padding:16px}
+    .sheet-action{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:14px;padding:14px 16px;text-align:left;font:inherit;font-weight:650;cursor:pointer}
+    .sheet-action:hover{background:var(--surface2)}
+    .sheet-action.danger{color:var(--danger)}
+    .dialog-copy{padding:18px 18px 0;color:var(--muted);line-height:1.5}
+    .dialog-input{padding:16px 18px 4px}
+    .dialog-input textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:14px;padding:14px;font:inherit;outline:none}
+    .dialog-input textarea:focus{border-color:var(--muted)}
+    .toast-stack{position:fixed;right:18px;bottom:18px;z-index:80;display:grid;gap:10px;pointer-events:none}
+    .toast{min-width:min(360px,calc(100vw - 36px));max-width:440px;background:var(--text);color:var(--bg);border-radius:14px;padding:14px 16px;box-shadow:0 18px 60px rgba(0,0,0,.28);font-size:13px;line-height:1.45;animation:toastIn 320ms var(--ease) both}
+    .toast.error{background:var(--danger);color:#fff}
+    .toast.leaving{animation:toastOut 220ms var(--ease) both}
+    .composer{border-top:1px solid var(--line);background:var(--surface);padding:14px 20px;display:flex;gap:10px}
+    .composer input{flex:1;border-radius:14px}
+    .send-button{width:48px;border:0;border-radius:14px;background:var(--text);color:var(--bg);font-size:20px;cursor:pointer}
+    .empty-state{margin:auto;color:var(--muted);text-align:center}
+    .mobile-back{display:none}
+    @media(max-width:860px){
+      .messenger{grid-template-columns:1fr}
+      .main-chat{display:none}
+      .messenger.chat-open .sidebar{display:none}
+      .messenger.chat-open .main-chat{display:grid}
+      .mobile-back{display:grid}
+    }
+    @media(max-width:860px){.page{grid-template-columns:1fr}.intro{min-height:42vh;border-right:0;border-bottom:1px solid var(--line)}.auth{min-height:58vh}h1{font-size:58px}.intro:after{opacity:.45}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="intro">
+      <div class="logo">Wavero</div>
+      <div class="statement">
+        <div class="eyebrow">Private communication</div>
+        <h1>Общение.<br>Без шума.</h1>
+        <p class="lead">Один аккаунт для личных диалогов, сообществ и каналов. Быстрый старт, строгий интерфейс, только необходимое.</p>
+      </div>
+      <div class="foot">Wavero © 2026</div>
+    </section>
+
+    <section class="auth">
+      <div class="card">
+        <div id="notice" class="notice" role="status" aria-live="polite">
+          <h2 id="noticeTitle" class="notice-title"></h2>
+          <p id="noticeText" class="notice-text"></p>
+        </div>
+        <div id="authArea">
+          <div class="tabs">
+            <button class="tab active" id="registerTab" type="button">Создать аккаунт</button>
+            <button class="tab" id="loginTab" type="button">Войти</button>
+          </div>
+
+          <form id="registerForm" novalidate autocomplete="off">
+            <label>Имя
+              <input id="regDisplayName" maxlength="50" autocomplete="name" placeholder="Как вас называть" aria-describedby="displayNameError">
+              <div class="field-error" id="displayNameError" role="alert"></div>
+            </label>
+            <label>Username
+              <input id="regUsername" maxlength="24" autocomplete="username" placeholder="username" aria-describedby="usernameError">
+              <div class="field-hint">4–24 символа: латинские буквы, цифры и _</div>
+              <div class="field-error" id="usernameError" role="alert"></div>
+            </label>
+            <label>Email
+              <input id="regEmail" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="name@example.com" aria-describedby="emailError">
+              <div class="field-error" id="emailError" role="alert"></div>
+            </label>
+            <label>Пароль
+              <div class="password-wrap">
+                <input id="regPassword" type="password" autocomplete="new-password" placeholder="Создайте пароль" aria-describedby="passwordRules passwordError">
+                <button class="password-toggle" id="toggleRegPassword" type="button" aria-label="Показать пароль" aria-pressed="false"></button>
+              </div>
+              <div class="password-rules" id="passwordRules">
+                <div class="password-rule" id="ruleLength">Не менее 8 символов</div>
+                <div class="password-rule" id="ruleDigit">Хотя бы одна цифра</div>
+              </div>
+              <div class="field-error" id="passwordError" role="alert"></div>
+            </label>
+            <button class="primary" id="registerButton" type="submit" formnovalidate>Продолжить</button>
+          </form>
+
+          <form id="loginForm" class="hidden" novalidate autocomplete="off">
+            <label>Почта или логин
+              <input id="loginIdentifier" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="name@example.com или username" aria-describedby="loginIdentifierError">
+              <div class="field-error" id="loginIdentifierError" role="alert"></div>
+            </label>
+            <label>Пароль
+              <div class="password-wrap">
+                <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Пароль">
+                <button class="password-toggle" id="toggleLoginPassword" type="button" aria-label="Показать пароль" aria-pressed="false"></button>
+              </div>
+            </label>
+            <button class="primary" id="loginButton" type="submit" formnovalidate>Войти</button>
+            <button class="link" id="showResetButton" type="button">Восстановить пароль</button>
+          </form>
+
+          <form id="resetForm" class="hidden" novalidate autocomplete="off">
+            <label>Email
+              <input id="resetEmail" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="name@example.com" aria-describedby="resetEmailError">
+              <div class="field-error" id="resetEmailError" role="alert"></div>
+            </label>
+            <button class="primary" id="resetSubmitButton" type="submit" formnovalidate>Отправить письмо</button>
+            <button class="link" id="backToLoginButton" type="button">Вернуться ко входу</button>
+          </form>
+
+
+        </div>
+
+        <div id="profileArea" class="profile hidden">
+          <h2 id="profileName"></h2>
+          <div class="username">@<span id="profileUsername"></span></div>
+          <div id="profileEmail" class="email"></div>
+          <button class="outline" id="logoutButton" type="button">Выйти</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section id="messengerArea" class="messenger hidden">
+    <aside class="sidebar">
+      <header class="sidebar-head">
+        <div class="sidebar-brand">Wavero</div>
+        <div style="display:flex;gap:8px">
+          <button id="newChatButton" class="icon-button" type="button" aria-label="Новый диалог">＋</button>
+          <button id="themeButton" class="icon-button" type="button" aria-label="Сменить тему">◐</button>
+          <button id="messengerLogoutButton" class="text-button" type="button">Выход</button>
+        </div>
+      </header>
+      <div id="chatList" class="chat-list"></div>
+    </aside>
+
+    <section class="main-chat">
+      <header class="chat-head">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button id="mobileBackButton" class="icon-button mobile-back" type="button">←</button>
+          <div>
+            <div id="activeChatTitle" class="chat-head-title">Выберите чат</div>
+            <div id="activeChatSubtitle" class="chat-head-sub"></div>
+          </div>
+        </div>
+        <div></div>
+      </header>
+
+      <div id="messages" class="messages">
+        <div class="empty-state">Выберите диалог слева</div>
+      </div>
+
+      <form id="composerForm" class="composer hidden" novalidate>
+        <input id="messageInput" type="text" autocomplete="off" placeholder="Сообщение">
+        <button class="send-button" type="submit" aria-label="Отправить">↑</button>
+      </form>
+    </section>
+  </section>
+
+  <section id="userSearchSheet" class="search-sheet hidden" aria-modal="true" role="dialog">
+    <div class="search-panel">
+      <div class="search-head">
+        <input id="userSearchInput" type="text" autocomplete="off" placeholder="Найти пользователя по логину или имени">
+        <button id="closeUserSearch" class="icon-button" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div id="userSearchResults" class="search-results">
+        <div class="empty-state" style="padding:36px 12px">Введите минимум два символа</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="messageActionSheet" class="search-sheet hidden" aria-modal="true" role="dialog">
+    <div class="search-panel" style="width:min(420px,100%)">
+      <div class="search-head">
+        <strong style="flex:1">Действия с сообщением</strong>
+        <button id="closeMessageActions" class="icon-button" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="sheet-actions">
+        <button id="editMessageAction" class="sheet-action" type="button">Изменить сообщение</button>
+        <button id="deleteMessageAction" class="sheet-action danger" type="button">Удалить сообщение</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="editMessageSheet" class="search-sheet hidden" aria-modal="true" role="dialog">
+    <div class="search-panel" style="width:min(540px,100%)">
+      <div class="search-head">
+        <strong style="flex:1">Изменить сообщение</strong>
+        <button id="closeEditMessage" class="icon-button" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="dialog-input">
+        <textarea id="editMessageInput" maxlength="4000" placeholder="Текст сообщения"></textarea>
+      </div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr">
+        <button id="cancelEditMessage" class="sheet-action" type="button">Отмена</button>
+        <button id="saveEditMessage" class="sheet-action" type="button">Сохранить</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="deleteMessageSheet" class="search-sheet hidden" aria-modal="true" role="dialog">
+    <div class="search-panel" style="width:min(440px,100%)">
+      <div class="search-head">
+        <strong style="flex:1">Удалить сообщение?</strong>
+        <button id="closeDeleteMessage" class="icon-button" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="dialog-copy">Сообщение исчезнет у всех участников этого чата.</div>
+      <div class="sheet-actions" style="grid-template-columns:1fr 1fr">
+        <button id="cancelDeleteMessage" class="sheet-action" type="button">Отмена</button>
+        <button id="confirmDeleteMessage" class="sheet-action danger" type="button">Удалить</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+
+  <script>
+    const WAVERO_BUILD = "0.7.0-same-origin";
+    const API_BASE = window.location.origin;
+    const WEB_VERSION = "0.7.0";
+    window.WAVERO_BUILD = WAVERO_BUILD;
+    const $ = (id) => document.getElementById(id);
+
+    const appState = {
+      token: null,
+      user: null,
+      chats: [],
+      activeChat: null,
+      pollTimer: null,
+      messageSignature: "",
+      selectedMessage: null,
+      directoryRequest: 0,
+      refreshInFlight: null
+    };
+    const notice = $("notice");
+
+    const eyeOpen = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></svg>`;
+    const eyeClosed = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 6.2A10.8 10.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-3 3.7"/><path d="M6.2 6.2C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6c1.3 0 2.5-.3 3.6-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`;
+
+    function attachPasswordToggle(buttonId, inputId) {
+      const button = $(buttonId);
+      const input = $(inputId);
+      button.innerHTML = eyeOpen;
+      button.addEventListener("click", () => {
+        const visible = input.type === "text";
+        input.type = visible ? "password" : "text";
+        button.innerHTML = visible ? eyeOpen : eyeClosed;
+        button.setAttribute("aria-label", visible ? "Показать пароль" : "Скрыть пароль");
+        button.setAttribute("aria-pressed", String(!visible));
+        input.focus();
+      });
+    }
+
+    attachPasswordToggle("toggleRegPassword", "regPassword");
+    attachPasswordToggle("toggleLoginPassword", "loginPassword");
+
+    function passwordState(value) {
+      return {
+        length: value.length >= 8,
+        digit: /\d/.test(value)
+      };
+    }
+
+    function renderPasswordState() {
+      const input = $("regPassword");
+      const state = passwordState(input.value);
+      $("ruleLength").classList.toggle("valid", state.length);
+      $("ruleDigit").classList.toggle("valid", state.digit);
+      input.classList.remove("input-error");
+      $("passwordError").textContent = "";
+      return state;
+    }
+
+    $("regPassword").addEventListener("input", renderPasswordState);
+
+    function validatePasswordField() {
+      const input = $("regPassword");
+      const state = renderPasswordState();
+      let error = "";
+      if (!state.length) error = "Пароль должен содержать не менее 8 символов.";
+      else if (!state.digit) error = "Добавьте в пароль хотя бы одну цифру.";
+
+      input.classList.toggle("input-error", Boolean(error));
+      $("passwordError").textContent = error;
+      if (error) input.focus();
+      return !error;
+    }
+
+    function setNotice(title = "", text = "", type = "") {
+      $("noticeTitle").textContent = title;
+      $("noticeText").textContent = text;
+      notice.className = `notice ${type} ${title ? "visible" : ""}`;
+      if (title) notice.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    function busy(button, state, label) {
+      button.disabled = state;
+      button.textContent = state ? "Подождите…" : label;
+    }
+
+    function tab(mode) {
+      const isRegister = mode === "register";
+      $("registerForm").classList.toggle("hidden", !isRegister);
+      $("loginForm").classList.toggle("hidden", isRegister);
+      $("resetForm").classList.add("hidden");
+      $("registerTab").classList.toggle("active", isRegister);
+      $("loginTab").classList.toggle("active", !isRegister);
+      setNotice();
+    }
+
+    async function api(path, body, token) {
+      const response = await fetch(`${API_BASE}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(body || {})
+      });
+
+      const data = await response.json().catch(() => ({ error: "Сервер вернул некорректный ответ." }));
+      if (!response.ok) {
+        const error = new Error(data.error || "Не удалось выполнить запрос.");
+        error.code = data.code;
+        throw error;
+      }
+      return data;
+    }
+
+    $("registerForm").noValidate = true;
+    $("loginForm").noValidate = true;
+    $("resetForm").noValidate = true;
+
+    $("registerTab").onclick = () => tab("register");
+    $("loginTab").onclick = () => tab("login");
+
+    function setFieldError(inputId, errorId, text) {
+      const input = $(inputId);
+      input.classList.toggle("input-error", Boolean(text));
+      $(errorId).textContent = text;
+    }
+
+    function clearRegistrationErrors() {
+      setFieldError("regDisplayName", "displayNameError", "");
+      setFieldError("regUsername", "usernameError", "");
+      setFieldError("regEmail", "emailError", "");
+      $("regPassword").classList.remove("input-error");
+      $("passwordError").textContent = "";
+    }
+
+    function validateRegistrationFields(payload) {
+      clearRegistrationErrors();
+      let firstInvalid = null;
+
+      if (payload.display_name.length < 1) {
+        setFieldError("regDisplayName", "displayNameError", "Введите имя.");
+        firstInvalid ||= $("regDisplayName");
+      } else if (payload.display_name.length > 50) {
+        setFieldError("regDisplayName", "displayNameError", "Имя не должно быть длиннее 50 символов.");
+        firstInvalid ||= $("regDisplayName");
+      }
+
+      if (!/^[a-z0-9_]{4,24}$/.test(payload.username)) {
+        setFieldError("regUsername", "usernameError", "Проверьте username: от 4 до 24 допустимых символов.");
+        firstInvalid ||= $("regUsername");
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+        setFieldError("regEmail", "emailError", "Введите корректный email.");
+        firstInvalid ||= $("regEmail");
+      }
+
+      if (!validatePasswordField()) {
+        firstInvalid ||= $("regPassword");
+      }
+
+      if (firstInvalid) {
+        firstInvalid.focus();
+        return false;
+      }
+
+      return true;
+    }
+
+    ["regDisplayName", "regUsername", "regEmail"].forEach((id) => {
+      $(id).addEventListener("input", () => {
+        const map = {
+          regDisplayName: "displayNameError",
+          regUsername: "usernameError",
+          regEmail: "emailError"
+        };
+        setFieldError(id, map[id], "");
+      });
+    });
+
+    $("loginIdentifier").addEventListener("input", () => {
+      setFieldError("loginIdentifier", "loginIdentifierError", "");
+    });
+    $("loginPassword").addEventListener("input", () => {
+      $("loginPassword").classList.remove("input-error");
+    });
+
+    document.querySelectorAll("input").forEach((input) => {
+      input.addEventListener("invalid", (event) => {
+        event.preventDefault();
+      });
+    });
+
+    $("registerForm").onsubmit = async (event) => {
+      event.preventDefault();
+      const button = $("registerButton");
+      busy(button, true, "Продолжить");
+
+      const payload = {
+        display_name: $("regDisplayName").value.trim(),
+        username: $("regUsername").value.trim().toLowerCase(),
+        email: $("regEmail").value.trim(),
+        password: $("regPassword").value
+      };
+
+      if (!validateRegistrationFields(payload)) {
+        setNotice("Проверьте форму", "Некоторые поля заполнены неверно.", "error");
+        busy(button, false, "Продолжить");
+        return;
+      }
+
+      try {
+        const data = await api("/api/auth/register", payload);
+        localStorage.setItem("wavero_pending_profile", JSON.stringify({
+          username: payload.username,
+          display_name: payload.display_name
+        }));
+        tab("login");
+        $("loginIdentifier").value = payload.email;
+        setNotice("Заявка отправлена", "Откройте письмо, подтвердите email и затем войдите в аккаунт.", "ok");
+      } catch (error) {
+        setNotice("Не удалось создать аккаунт", error.message, "error");
+      } finally {
+        busy(button, false, "Продолжить");
+      }
+    };
+
+    $("loginForm").onsubmit = async (event) => {
+      event.preventDefault();
+      const button = $("loginButton");
+      busy(button, true, "Войти");
+
+      const loginIdentifier = $("loginIdentifier").value.trim().toLowerCase();
+      const loginPassword = $("loginPassword").value;
+
+      if (!loginIdentifier) {
+        setFieldError("loginIdentifier", "loginIdentifierError", "Введите почту или логин.");
+        setNotice("Проверьте данные", "Введите почту или логин.", "error");
+        busy(button, false, "Войти");
+        return;
+      }
+
+      if (!loginPassword) {
+        setNotice("Проверьте данные", "Неправильный пароль, почта или логин.", "error");
+        $("loginPassword").classList.add("input-error");
+        $("loginPassword").focus();
+        busy(button, false, "Войти");
+        return;
+      }
+
+      try {
+        const auth = await api("/api/auth/login", {
+          identifier: loginIdentifier,
+          password: loginPassword
+        });
+
+        const pending = JSON.parse(localStorage.getItem("wavero_pending_profile") || "{}");
+        const synced = await api("/api/auth/sync", {
+          username: pending.username || "",
+          display_name: pending.display_name || auth.firebase_user.display_name || ""
+        }, auth.id_token);
+
+        saveSession({
+          id_token: auth.id_token,
+          refresh_token: auth.refresh_token,
+          expires_at: Date.now() + (Number(auth.expires_in || 3600) * 1000)
+        });
+        localStorage.removeItem("wavero_pending_profile");
+
+        setFieldError("loginIdentifier", "loginIdentifierError", "");
+        $("loginPassword").classList.remove("input-error");
+        setNotice();
+
+        await showProfile(synced.user);
+      } catch (error) {
+        const text = error.code === "EMAIL_NOT_VERIFIED"
+          ? error.message
+          : "Неправильный пароль, почта или логин.";
+        const title = error.code === "EMAIL_NOT_VERIFIED"
+          ? "Подтвердите email"
+          : "Проверьте данные";
+        setNotice(title, text, "error");
+      } finally {
+        busy(button, false, "Войти");
+      }
+    };
+
+    $("showResetButton").onclick = () => {
+      $("loginForm").classList.add("hidden");
+      $("resetForm").classList.remove("hidden");
+      setNotice();
+      $("resetEmail").focus();
+    };
+
+    $("backToLoginButton").onclick = () => {
+      $("resetForm").classList.add("hidden");
+      $("loginForm").classList.remove("hidden");
+      setFieldError("resetEmail", "resetEmailError", "");
+      setNotice();
+    };
+
+    $("resetEmail").addEventListener("input", () => {
+      setFieldError("resetEmail", "resetEmailError", "");
+    });
+
+    $("resetForm").onsubmit = async (event) => {
+      event.preventDefault();
+      const button = $("resetSubmitButton");
+      const email = $("resetEmail").value.trim().toLowerCase();
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setFieldError("resetEmail", "resetEmailError", "Введите корректный email.");
+        setNotice("Проверьте email", "Укажите адрес, на который зарегистрирован аккаунт.", "error");
+        $("resetEmail").focus();
+        return;
+      }
+
+      busy(button, true, "Отправить письмо");
+
+      try {
+        await api("/api/auth/reset-password", { email });
+        setNotice(
+          "Письмо отправлено",
+          "Проверьте почту и следуйте инструкции для создания нового пароля.",
+          "ok"
+        );
+      } catch (error) {
+        setNotice("Не удалось отправить письмо", error.message, "error");
+      } finally {
+        busy(button, false, "Отправить письмо");
+      }
+    };
+
+    $("logoutButton").onclick = messengerLogout;
+
+    async function showProfile(user) {
+      appState.user = user;
+
+      document.querySelector(".page").classList.add("hidden");
+      $("profileArea").classList.add("hidden");
+      $("messengerArea").classList.remove("hidden");
+
+      await loadChats();
+    }
+
+    async function authApi(path, options = {}, retry = true) {
+      let response;
+
+      try {
+        response = await fetch(`${API_BASE}${path}`, {
+          ...options,
+          headers: {
+            ...(options.body ? { "Content-Type": "application/json" } : {}),
+            "Authorization": `Bearer ${appState.token}`,
+            ...(options.headers || {})
+          }
+        });
+      } catch {
+        throw new Error("Не удалось связаться с сервером.");
+      }
+
+      if (response.status === 401 && retry) {
+        const session = readSession();
+        if (session?.refresh_token) {
+          if (!appState.refreshInFlight) {
+            appState.refreshInFlight = refreshSavedSession(session)
+              .finally(() => {
+                appState.refreshInFlight = null;
+              });
+          }
+
+          await appState.refreshInFlight;
+          return authApi(path, options, false);
+        }
+      }
+
+      const data = await response.json().catch(() => ({ error: "Некорректный ответ сервера." }));
+      if (!response.ok) throw new Error(data.error || "Ошибка запроса.");
+      return data;
+    }
+
+    async function loadChats() {
+      const data = await authApi("/api/me/chats");
+      appState.user = data.user;
+      appState.chats = data.chats || [];
+      renderChats();
+
+      if (!appState.activeChat && appState.chats.length) {
+        await openChat(appState.chats[0].id);
+      }
+    }
+
+    function renderChats() {
+      const list = $("chatList");
+      list.innerHTML = "";
+
+      if (!appState.chats.length) {
+        list.innerHTML = `<div class="empty-state" style="padding:40px 10px">У вас пока нет чатов</div>`;
+        return;
+      }
+
+      for (const chat of appState.chats) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `chat-row ${appState.activeChat?.id === chat.id ? "active" : ""}`;
+        const letter = (chat.title || chat.username || "?").trim().charAt(0).toUpperCase();
+        button.innerHTML = `
+          <div class="avatar">${escapeHtml(letter)}</div>
+          <div class="chat-copy">
+            <div class="chat-title">${escapeHtml(chat.title || chat.username || "Чат")}</div>
+            <div class="chat-preview">${escapeHtml(chat.last_message || chat.description || "Нет сообщений")}</div>
+          </div>
+        `;
+        button.style.animationDelay = `${Math.min(list.children.length * 34, 240)}ms`;
+        button.onclick = () => openChat(chat.id);
+        list.appendChild(button);
+      }
+    }
+
+    async function openChat(chatId) {
+      const chat = appState.chats.find((item) => item.id === chatId);
+      if (!chat) return;
+
+      appState.activeChat = chat;
+      appState.messageSignature = "";
+      $("messengerArea").classList.add("chat-open");
+      replayAnimation(document.querySelector(".main-chat"), "chat-transition");
+      $("activeChatTitle").textContent = chat.title || chat.username || "Чат";
+      $("activeChatSubtitle").textContent =
+        chat.type === "channel" ? "Канал" :
+        chat.type === "group" ? "Группа" :
+        chat.type === "admin_channel" ? "Служебный канал" : "Диалог";
+
+      const canWrite = chat.type !== "channel" || ["owner", "admin", "moderator"].includes(chat.role);
+      $("composerForm").classList.toggle("hidden", !canWrite);
+
+      renderChats();
+      await loadMessages();
+
+      clearInterval(appState.pollTimer);
+      appState.pollTimer = setInterval(loadMessages, 3000);
+    }
+
+    async function loadMessages({ force = false } = {}) {
+      if (!appState.activeChat) return;
+
+      try {
+        const data = await authApi(`/api/chats/${encodeURIComponent(appState.activeChat.id)}/messages`);
+        const messages = data.messages || [];
+        const signature = messages
+          .map((message) => `${message.id}:${message.edited_at || ""}:${message.text}`)
+          .join("|");
+
+        if (force || signature !== appState.messageSignature) {
+          appState.messageSignature = signature;
+          renderMessages(messages);
+        }
+      } catch (error) {
+        $("messages").innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function renderMessages(messages) {
+      const container = $("messages");
+      const wasNearBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+
+      container.innerHTML = "";
+
+      if (!messages.length) {
+        container.innerHTML = `<div class="empty-state">Здесь пока нет сообщений</div>`;
+        return;
+      }
+
+      for (const message of messages) {
+        const mine = message.sender_user_id === appState.user.id;
+        const bubble = document.createElement("article");
+        bubble.className = `bubble ${mine ? "mine" : ""}`;
+        bubble.dataset.messageId = message.id;
+
+        const time = new Date(message.created_at).toLocaleTimeString("ru-RU", {
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+
+        const edited = message.edited_at
+          ? `<span class="edited-label">изменено</span>`
+          : "";
+
+        const actions = Number(message.can_edit) === 1 || Number(message.can_delete) === 1
+          ? `<button class="message-actions" type="button" aria-label="Действия с сообщением">⋯</button>`
+          : "";
+
+        bubble.innerHTML = `
+          <div class="bubble-author">${escapeHtml(message.sender_display_name || message.sender_username || "Wavero")}</div>
+          <div class="bubble-text">${escapeHtml(message.text)}</div>
+          <div class="bubble-time">
+            ${edited}
+            <span>${time}</span>
+            ${actions}
+          </div>
+        `;
+
+        const actionButton = bubble.querySelector(".message-actions");
+        if (actionButton) {
+          actionButton.onclick = (event) => {
+            event.stopPropagation();
+            openMessageActions(message);
+          };
+        }
+
+        container.appendChild(bubble);
+      }
+
+      if (wasNearBottom || !container.dataset.renderedOnce) {
+        container.scrollTop = container.scrollHeight;
+      }
+
+      container.dataset.renderedOnce = "1";
+    }
+
+    $("composerForm").onsubmit = async (event) => {
+      event.preventDefault();
+      const input = $("messageInput");
+      const text = input.value.trim();
+
+      if (!text || !appState.activeChat) return;
+
+      const submitButton = $("composerForm").querySelector("button[type='submit']");
+      input.value = "";
+      input.disabled = true;
+      submitButton.disabled = true;
+
+      try {
+        await authApi(`/api/chats/${encodeURIComponent(appState.activeChat.id)}/messages`, {
+          method: "POST",
+          body: JSON.stringify({ text })
+        });
+
+        await loadMessages({ force: true });
+        await loadChats();
+      } catch (error) {
+        input.value = text;
+        showToast(error.message, "error");
+      } finally {
+        input.disabled = false;
+        submitButton.disabled = false;
+        input.focus();
+      }
+    };
+
+
+
+    function showToast(message, type = "") {
+      const toast = document.createElement("div");
+      toast.className = `toast ${type}`.trim();
+      toast.textContent = message;
+      $("toastStack").appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add("leaving");
+        toast.addEventListener("animationend", () => toast.remove(), { once: true });
+      }, 2600);
+    }
+
+    function closeDialog(id) {
+      const sheet = $(id);
+      if (!sheet || sheet.classList.contains("hidden")) return;
+      sheet.classList.add("closing");
+      setTimeout(() => {
+        sheet.classList.add("hidden");
+        sheet.classList.remove("closing");
+      }, 180);
+    }
+
+    function openMessageActions(message) {
+      appState.selectedMessage = message;
+      $("editMessageAction").classList.toggle("hidden", Number(message.can_edit) !== 1);
+      $("deleteMessageAction").classList.toggle("hidden", Number(message.can_delete) !== 1);
+      $("messageActionSheet").classList.remove("hidden");
+    }
+
+    $("closeMessageActions").onclick = () => closeDialog("messageActionSheet");
+
+    $("messageActionSheet").addEventListener("click", (event) => {
+      if (event.target === $("messageActionSheet")) {
+        closeDialog("messageActionSheet");
+      }
+    });
+
+    $("editMessageAction").onclick = () => {
+      const message = appState.selectedMessage;
+      if (!message) return;
+      closeDialog("messageActionSheet");
+      $("editMessageInput").value = message.text || "";
+      $("editMessageSheet").classList.remove("hidden");
+      setTimeout(() => $("editMessageInput").focus(), 0);
+    };
+
+    $("closeEditMessage").onclick = () => closeDialog("editMessageSheet");
+    $("cancelEditMessage").onclick = () => closeDialog("editMessageSheet");
+
+    $("editMessageSheet").addEventListener("click", (event) => {
+      if (event.target === $("editMessageSheet")) {
+        closeDialog("editMessageSheet");
+      }
+    });
+
+    $("saveEditMessage").onclick = async () => {
+      const message = appState.selectedMessage;
+      const text = $("editMessageInput").value.trim();
+
+      if (!message || !text) {
+        showToast("Сообщение не может быть пустым.", "error");
+        return;
+      }
+
+      const button = $("saveEditMessage");
+      button.disabled = true;
+
+      try {
+        await authApi(`/api/messages/${encodeURIComponent(message.id)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ text })
+        });
+
+        closeDialog("editMessageSheet");
+        showToast("Сообщение изменено.");
+        await loadMessages({ force: true });
+        await loadChats();
+      } catch (error) {
+        showToast(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    };
+
+    $("deleteMessageAction").onclick = () => {
+      closeDialog("messageActionSheet");
+      $("deleteMessageSheet").classList.remove("hidden");
+    };
+
+    $("closeDeleteMessage").onclick = () => closeDialog("deleteMessageSheet");
+    $("cancelDeleteMessage").onclick = () => closeDialog("deleteMessageSheet");
+
+    $("deleteMessageSheet").addEventListener("click", (event) => {
+      if (event.target === $("deleteMessageSheet")) {
+        closeDialog("deleteMessageSheet");
+      }
+    });
+
+    $("confirmDeleteMessage").onclick = async () => {
+      const message = appState.selectedMessage;
+      if (!message) return;
+
+      const button = $("confirmDeleteMessage");
+      button.disabled = true;
+
+      try {
+        await authApi(`/api/messages/${encodeURIComponent(message.id)}`, {
+          method: "DELETE"
+        });
+
+        closeDialog("deleteMessageSheet");
+        appState.selectedMessage = null;
+        showToast("Сообщение удалено.");
+        await loadMessages({ force: true });
+        await loadChats();
+      } catch (error) {
+        showToast(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    };
+
+    function saveSession(session) {
+      localStorage.setItem("wavero_session", JSON.stringify(session));
+      appState.token = session.id_token;
+    }
+
+    function readSession() {
+      try {
+        return JSON.parse(localStorage.getItem("wavero_session") || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    async function refreshSavedSession(session) {
+      const data = await api("/api/auth/refresh", {
+        refresh_token: session.refresh_token
+      });
+
+      const next = {
+        id_token: data.id_token,
+        refresh_token: data.refresh_token,
+        expires_at: Date.now() + (Number(data.expires_in || 3600) * 1000)
+      };
+
+      saveSession(next);
+      return next;
+    }
+
+    async function restoreLogin() {
+      let session = readSession();
+      if (!session?.refresh_token) return;
+
+      try {
+        if (!session.id_token || Date.now() >= Number(session.expires_at || 0) - 60000) {
+          session = await refreshSavedSession(session);
+        } else {
+          appState.token = session.id_token;
+        }
+
+        const synced = await authApi("/api/auth/sync", {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+
+        await showProfile(synced.user);
+      } catch {
+        localStorage.removeItem("wavero_session");
+        appState.token = null;
+      }
+    }
+
+    function replayAnimation(element, className) {
+      element.classList.remove(className);
+      void element.offsetWidth;
+      element.classList.add(className);
+      element.addEventListener("animationend", () => {
+        element.classList.remove(className);
+      }, { once: true });
+    }
+
+    function closeSearchSheet() {
+      appState.directoryRequest += 1;
+      const sheet = $("userSearchSheet");
+      if (sheet.classList.contains("hidden")) return;
+      sheet.classList.add("closing");
+      setTimeout(() => {
+        sheet.classList.add("hidden");
+        sheet.classList.remove("closing");
+      }, 180);
+    }
+
+    function themeTransition() {
+      const flash = document.createElement("div");
+      flash.className = "theme-flash";
+      document.body.appendChild(flash);
+      flash.addEventListener("animationend", () => flash.remove(), { once: true });
+    }
+
+    function applyTheme(theme) {
+      document.body.classList.toggle("light", theme === "light");
+      localStorage.setItem("wavero_theme", theme);
+    }
+
+    function toggleTheme() {
+      themeTransition();
+      applyTheme(document.body.classList.contains("light") ? "dark" : "light");
+    }
+
+    applyTheme(localStorage.getItem("wavero_theme") || "dark");
+    restoreLogin();
+    $("themeButton").onclick = toggleTheme;
+
+    let userSearchTimer = null;
+
+    $("newChatButton").onclick = () => {
+      $("userSearchSheet").classList.remove("hidden");
+      $("userSearchInput").value = "";
+      $("userSearchResults").innerHTML =
+        `<div class="empty-state" style="padding:36px 12px">Введите минимум два символа</div>`;
+      setTimeout(() => $("userSearchInput").focus(), 0);
+    };
+
+    $("closeUserSearch").onclick = closeSearchSheet;
+
+    $("userSearchSheet").addEventListener("click", (event) => {
+      if (event.target === $("userSearchSheet")) {
+        closeSearchSheet();
+      }
+    });
+
+    $("userSearchInput").addEventListener("input", () => {
+      clearTimeout(userSearchTimer);
+      const query = $("userSearchInput").value.trim();
+
+      if (query.length < 2) {
+        appState.directoryRequest += 1;
+        $("userSearchResults").innerHTML =
+          `<div class="empty-state" style="padding:36px 12px">Введите минимум два символа</div>`;
+        return;
+      }
+
+      userSearchTimer = setTimeout(() => searchUsers(query), 280);
+    });
+
+    async function searchUsers(query) {
+      const requestNumber = ++appState.directoryRequest;
+      const normalized = query.trim().replace(/^@+/, "");
+
+      $("userSearchResults").innerHTML =
+        `<div class="empty-state" style="padding:36px 12px">Ищем пользователя…</div>`;
+
+      try {
+        // Simple cross-origin GET: no Authorization header and no JSON body.
+        // Therefore mobile browsers do not need an OPTIONS preflight request.
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
+        let response;
+        try {
+          response = await fetch(
+            `${API_BASE}/directory?q=${encodeURIComponent(normalized)}&exclude=${encodeURIComponent(appState.user?.id || "")}&_=${Date.now()}`,
+            {
+              method: "GET",
+              cache: "no-store",
+              signal: controller.signal
+            }
+          );
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data?.ok) {
+          throw new Error(data?.error || "Поиск временно недоступен.");
+        }
+
+        // Ignore an older response if the user has already typed a new query.
+        if (requestNumber !== appState.directoryRequest) return;
+
+        const users = Array.isArray(data.users) ? data.users : [];
+        renderUserSearch(users);
+      } catch (error) {
+        if (requestNumber !== appState.directoryRequest) return;
+
+        const text = error?.name === "AbortError"
+          ? "Поиск занял слишком много времени. Повторите попытку."
+          : "Не удалось загрузить поиск. Проверьте соединение и повторите попытку.";
+
+        $("userSearchResults").innerHTML =
+          `<div class="empty-state" style="padding:36px 12px">${escapeHtml(text)}</div>`;
+      }
+    }
+
+    function renderUserSearch(users) {
+      const container = $("userSearchResults");
+      container.innerHTML = "";
+
+      if (!users.length) {
+        container.innerHTML =
+          `<div class="empty-state" style="padding:36px 12px">Пользователь не найден</div>`;
+        return;
+      }
+
+      for (const user of users) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "user-result";
+
+        const currentId = String(appState.user?.id || "");
+        const resultId = String(user.id || "");
+        const isCurrentAccount = Boolean(currentId && resultId && currentId === resultId);
+
+        const letter = (user.display_name || user.username || "?").charAt(0).toUpperCase();
+        button.innerHTML = `
+          <div class="avatar">${escapeHtml(letter)}</div>
+          <div>
+            <div class="user-result-name">${escapeHtml(user.display_name || user.username)}</div>
+            <div class="user-result-login">@${escapeHtml(user.username)}</div>
+          </div>
+          <div class="start-label">${isCurrentAccount ? "Это вы" : "Написать"}</div>
+        `;
+
+        button.style.animationDelay = `${Math.min(container.children.length * 34, 220)}ms`;
+
+        if (isCurrentAccount) {
+          button.disabled = true;
+          button.setAttribute("aria-disabled", "true");
+          button.style.opacity = "0.58";
+          button.style.cursor = "default";
+        } else {
+          button.onclick = () => startDirectChat(user.id);
+        }
+
+        container.appendChild(button);
+      }
+    }
+
+    async function startDirectChat(targetUserId) {
+      if (!targetUserId) {
+        showToast("Пользователь не найден.", "error");
+        return;
+      }
+
+      $("userSearchResults").innerHTML =
+        `<div class="empty-state" style="padding:36px 12px">Создаём диалог…</div>`;
+
+      try {
+        const data = await authApi("/api/chats/direct", {
+          method: "POST",
+          body: JSON.stringify({ target_user_id: String(targetUserId) })
+        });
+
+        closeSearchSheet();
+        await loadChats();
+        await openChat(data.chat_id);
+        showToast(data.created ? "Диалог создан." : "Диалог открыт.");
+      } catch (error) {
+        const message = error?.message || "Не удалось создать диалог.";
+        $("userSearchResults").innerHTML =
+          `<div class="empty-state" style="padding:36px 12px">${escapeHtml(message)}</div>`;
+      }
+    }
+
+    $("mobileBackButton").onclick = () => $("messengerArea").classList.remove("chat-open");
+
+    function messengerLogout() {
+      clearInterval(appState.pollTimer);
+      localStorage.removeItem("wavero_session");
+      appState.token = null;
+      appState.user = null;
+      appState.activeChat = null;
+      appState.messageSignature = "";
+      appState.selectedMessage = null;
+
+      const messenger = $("messengerArea");
+      messenger.classList.add("leaving");
+
+      setTimeout(() => {
+        messenger.classList.add("hidden");
+        messenger.classList.remove("leaving");
+        document.querySelector(".page").classList.remove("hidden");
+        tab("login");
+        setNotice();
+      }, 300);
+    }
+
+    $("messengerLogoutButton").onclick = messengerLogout;
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
