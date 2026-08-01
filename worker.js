@@ -20,7 +20,7 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "0.6.0",
+          version: "0.6.1",
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
           databaseConfigured: Boolean(env.DB),
         });
@@ -54,8 +54,18 @@ export default {
         return listMyChats(request, env);
       }
 
-      if (request.method === "POST" && url.pathname === "/api/users/search") {
-        return searchUsers(request, env);
+      // Public directory lookup uses a simple GET request without Authorization.
+      // This deliberately avoids cross-origin preflight failures in mobile browsers.
+      if (request.method === "GET" && url.pathname === "/directory") {
+        return searchDirectory(request, env, url);
+      }
+
+      // Keep an authenticated alias for future native clients.
+      if (
+        (request.method === "GET" || request.method === "POST") &&
+        url.pathname === "/api/directory"
+      ) {
+        return searchDirectory(request, env, url);
       }
 
       if (request.method === "POST" && url.pathname === "/api/chats/direct") {
@@ -439,16 +449,26 @@ async function authenticatedD1User(request, env) {
 }
 
 
-async function searchUsers(request, env) {
-  const currentUser = await authenticatedD1User(request, env);
-  const body = await readJson(request);
-  const query = clean(body.query).toLowerCase();
+async function searchDirectory(request, env, url) {
+  if (!env.DB) {
+    throw new ApiError(500, "База данных не подключена.");
+  }
+
+  let rawQuery = url.searchParams.get("q") || "";
+
+  if (request.method === "POST") {
+    const body = await readJson(request, true);
+    rawQuery = body.query ?? rawQuery;
+  }
+
+  const query = normalizeDirectoryQuery(rawQuery);
 
   if (query.length < 2) {
     return json({ ok: true, users: [] });
   }
 
-  const pattern = `%${query}%`;
+  const pattern = `%${escapeLike(query)}%`;
+  const exact = query.toLowerCase();
 
   const result = await env.DB.prepare(`
     SELECT
@@ -456,22 +476,44 @@ async function searchUsers(request, env) {
       username,
       display_name
     FROM users
-    WHERE id <> ?1
-      AND status = 'active'
+    WHERE COALESCE(status, 'active') = 'active'
+      AND username IS NOT NULL
+      AND username <> ''
       AND (
-        username_normalized LIKE ?2
-        OR LOWER(display_name) LIKE ?2
+        LOWER(COALESCE(username_normalized, username)) LIKE ?1 ESCAPE '\\'
+        OR LOWER(COALESCE(display_name, '')) LIKE ?1 ESCAPE '\\'
       )
     ORDER BY
-      CASE WHEN username_normalized = ?3 THEN 0 ELSE 1 END,
-      username_normalized ASC
+      CASE
+        WHEN LOWER(COALESCE(username_normalized, username)) = ?2 THEN 0
+        WHEN LOWER(COALESCE(username_normalized, username)) LIKE ?2 || '%' THEN 1
+        ELSE 2
+      END,
+      LOWER(COALESCE(username_normalized, username)) ASC
     LIMIT 20
-  `).bind(currentUser.id, pattern, query).all();
+  `).bind(pattern, exact).all();
 
   return json({
     ok: true,
-    users: result.results || [],
+    users: (result.results || []).map((user) => ({
+      id: user.id,
+      username: clean(user.username),
+      display_name: clean(user.display_name) || clean(user.username),
+    })),
   });
+}
+
+function normalizeDirectoryQuery(value) {
+  return clean(value)
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 64);
+}
+
+function escapeLike(value) {
+  return value.replace(/[\\%_]/g, (symbol) => `\\${symbol}`);
 }
 
 async function createOrOpenDirectChat(request, env) {
