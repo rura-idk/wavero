@@ -20,7 +20,7 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "0.6.1",
+          version: "0.6.3",
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
           databaseConfigured: Boolean(env.DB),
         });
@@ -70,6 +70,13 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/api/chats/direct") {
         return createOrOpenDirectChat(request, env);
+      }
+
+      // Mobile-safe direct chat creation.
+      // Authentication is carried inside a text/plain JSON body, so browsers
+      // can send a simple CORS request without an OPTIONS preflight.
+      if (request.method === "POST" && url.pathname === "/mobile/direct-chat") {
+        return createOrOpenDirectChatMobile(request, env);
       }
 
       const messagesMatch = url.pathname.match(/^\/api\/chats\/([^/]+)\/messages$/);
@@ -428,7 +435,10 @@ async function syncAuthenticatedUser(request, env) {
 
 
 async function authenticatedD1User(request, env) {
-  const idToken = bearerToken(request);
+  return authenticatedD1UserByToken(env, bearerToken(request));
+}
+
+async function authenticatedD1UserByToken(env, idToken) {
   if (!idToken) throw new ApiError(401, "Требуется авторизация.");
 
   const account = await lookupFirebaseUser(env, idToken);
@@ -441,7 +451,7 @@ async function authenticatedD1User(request, env) {
     LIMIT 1
   `).bind(account.localId).first();
 
-  if (!user || user.status !== "active") {
+  if (!user || (user.status && user.status !== "active")) {
     throw new ApiError(403, "Профиль недоступен.");
   }
 
@@ -469,6 +479,7 @@ async function searchDirectory(request, env, url) {
 
   const pattern = `%${escapeLike(query)}%`;
   const exact = query.toLowerCase();
+  const excludeId = clean(url.searchParams.get("exclude"));
 
   const result = await env.DB.prepare(`
     SELECT
@@ -479,9 +490,11 @@ async function searchDirectory(request, env, url) {
     WHERE COALESCE(status, 'active') = 'active'
       AND username IS NOT NULL
       AND username <> ''
+      AND (?3 = '' OR id <> ?3)
       AND (
         LOWER(COALESCE(username_normalized, username)) LIKE ?1 ESCAPE '\\'
         OR LOWER(COALESCE(display_name, '')) LIKE ?1 ESCAPE '\\'
+        OR LOWER(COALESCE(email, '')) = ?2
       )
     ORDER BY
       CASE
@@ -491,7 +504,7 @@ async function searchDirectory(request, env, url) {
       END,
       LOWER(COALESCE(username_normalized, username)) ASC
     LIMIT 20
-  `).bind(pattern, exact).all();
+  `).bind(pattern, exact, excludeId).all();
 
   return json({
     ok: true,
@@ -528,16 +541,42 @@ async function createOrOpenDirectChat(request, env) {
   const target = await env.DB.prepare(`
     SELECT id, username, display_name
     FROM users
-    WHERE username_normalized = ?1
-      AND status = 'active'
+    WHERE LOWER(COALESCE(username_normalized, username)) = ?1
+      AND COALESCE(status, 'active') = 'active'
     LIMIT 1
   `).bind(targetUsername).first();
 
+  return createOrFindDirectChat(env, currentUser, target);
+}
+
+async function createOrOpenDirectChatMobile(request, env) {
+  const body = await readJson(request);
+  const idToken = clean(body.id_token);
+  const targetUserId = clean(body.target_user_id);
+
+  if (!targetUserId) {
+    throw new ApiError(400, "Не указан пользователь.");
+  }
+
+  const currentUser = await authenticatedD1UserByToken(env, idToken);
+
+  const target = await env.DB.prepare(`
+    SELECT id, username, display_name
+    FROM users
+    WHERE id = ?1
+      AND COALESCE(status, 'active') = 'active'
+    LIMIT 1
+  `).bind(targetUserId).first();
+
+  return createOrFindDirectChat(env, currentUser, target);
+}
+
+async function createOrFindDirectChat(env, currentUser, target) {
   if (!target) {
     throw new ApiError(404, "Пользователь не найден.");
   }
 
-  if (target.id === currentUser.id) {
+  if (String(target.id) === String(currentUser.id)) {
     throw new ApiError(400, "Нельзя создать диалог с самим собой.");
   }
 
@@ -568,6 +607,11 @@ async function createOrOpenDirectChat(request, env) {
       ok: true,
       created: false,
       chat_id: existing.id,
+      user: {
+        id: target.id,
+        username: target.username,
+        display_name: target.display_name || target.username,
+      },
     });
   }
 
@@ -625,6 +669,11 @@ async function createOrOpenDirectChat(request, env) {
     ok: true,
     created: true,
     chat_id: chatId,
+    user: {
+      id: target.id,
+      username: target.username,
+      display_name: target.display_name || target.username,
+    },
   }, 201);
 }
 
