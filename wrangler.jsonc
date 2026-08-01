@@ -19,5 +19,20 @@
       "database_name": "wavero-db",
       "database_id": "2e1c715c-896e-4f78-9d44-fa19f2ce54e2"
     }
-  ]
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    }
+  }
 }
