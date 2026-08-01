@@ -1,0 +1,11 @@
+{
+  "name": "wavero-api",
+  "version": "0.5.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.68.0"
+  }
+}
