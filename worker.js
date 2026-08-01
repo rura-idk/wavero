@@ -22,7 +22,7 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "0.7.0",
+          version: "0.7.1",
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
           databaseConfigured: Boolean(env.DB),
         });
@@ -656,7 +656,7 @@ async function createOrFindDirectChat(env, currentUser, target) {
         ?1,
         'direct',
         NULL,
-        NULL,
+        '',
         ?2,
         0,
         0,
