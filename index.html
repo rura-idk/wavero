@@ -8,6 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Wavero</title>
+  <meta name="wavero-build" content="0.7.1-direct-chat-mobile">
   <meta name="wavero-build" content="0.7.0-same-origin">
   <style>
     :root {
@@ -369,9 +370,9 @@
   <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 
   <script>
-    const WAVERO_BUILD = "0.7.0-same-origin";
+    const WAVERO_BUILD = "0.7.1-direct-chat-mobile";
     const API_BASE = window.location.origin;
-    const WEB_VERSION = "0.7.0";
+    const WEB_VERSION = "0.7.1";
     window.WAVERO_BUILD = WAVERO_BUILD;
     const $ = (id) => document.getElementById(id);
 
@@ -1260,6 +1261,61 @@
       }
     }
 
+    async function createDirectChatRequest(targetUserId, retry = true) {
+      let response;
+
+      try {
+        response = await fetch(`${API_BASE}/mobile/direct-chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=UTF-8",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            id_token: appState.token,
+            target_user_id: String(targetUserId)
+          }),
+          cache: "no-store"
+        });
+      } catch {
+        throw new Error("Не удалось связаться с сервером.");
+      }
+
+      if (response.status === 401 && retry) {
+        const session = readSession();
+        if (session?.refresh_token) {
+          if (!appState.refreshInFlight) {
+            appState.refreshInFlight = refreshSavedSession(session)
+              .finally(() => {
+                appState.refreshInFlight = null;
+              });
+          }
+
+          await appState.refreshInFlight;
+          return createDirectChatRequest(targetUserId, false);
+        }
+      }
+
+      const raw = await response.text();
+      let data = null;
+
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.error || `Не удалось создать диалог. Код ${response.status}.`);
+      }
+
+      if (!data?.ok || !data?.chat_id) {
+        throw new Error("Сервер не подтвердил создание диалога.");
+      }
+
+      return data;
+    }
+
     async function startDirectChat(targetUserId) {
       if (!targetUserId) {
         showToast("Пользователь не найден.", "error");
@@ -1270,10 +1326,7 @@
         `<div class="empty-state" style="padding:36px 12px">Создаём диалог…</div>`;
 
       try {
-        const data = await authApi("/api/chats/direct", {
-          method: "POST",
-          body: JSON.stringify({ target_user_id: String(targetUserId) })
-        });
+        const data = await createDirectChatRequest(targetUserId);
 
         closeSearchSheet();
         await loadChats();
