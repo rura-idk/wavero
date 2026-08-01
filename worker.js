@@ -22,7 +22,7 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "0.7.1",
+          version: "0.7.2",
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
           databaseConfigured: Boolean(env.DB),
         });
@@ -612,7 +612,7 @@ async function createOrFindDirectChat(env, currentUser, target) {
       ON theirs.chat_id = c.id
       AND theirs.user_id = ?2
       AND theirs.left_at IS NULL
-    WHERE c.type = 'direct'
+    WHERE c.type = 'private'
       AND c.deleted_at IS NULL
       AND (
         SELECT COUNT(*)
@@ -654,7 +654,7 @@ async function createOrFindDirectChat(env, currentUser, target) {
       )
       VALUES (
         ?1,
-        'direct',
+        'private',
         NULL,
         '',
         ?2,
@@ -706,7 +706,7 @@ async function listMyChats(request, env) {
       c.id,
       c.type,
       CASE
-        WHEN c.type = 'direct' THEN (
+        WHEN c.type = 'private' THEN (
           SELECT other_user.display_name
           FROM chat_members other_member
           INNER JOIN users other_user ON other_user.id = other_member.user_id
@@ -718,7 +718,7 @@ async function listMyChats(request, env) {
         ELSE c.title
       END AS title,
       CASE
-        WHEN c.type = 'direct' THEN (
+        WHEN c.type = 'private' THEN (
           SELECT other_user.username
           FROM chat_members other_member
           INNER JOIN users other_user ON other_user.id = other_member.user_id
