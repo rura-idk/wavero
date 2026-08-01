@@ -370,9 +370,9 @@
   <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 
   <script>
-    const WAVERO_BUILD = "0.7.1-direct-chat-mobile";
+    const WAVERO_BUILD = "0.7.3-chat-switch-fix";
     const API_BASE = window.location.origin;
-    const WEB_VERSION = "0.7.1";
+    const WEB_VERSION = "0.7.3";
     window.WAVERO_BUILD = WAVERO_BUILD;
     const $ = (id) => document.getElementById(id);
 
@@ -385,7 +385,8 @@
       messageSignature: "",
       selectedMessage: null,
       directoryRequest: 0,
-      refreshInFlight: null
+      refreshInFlight: null,
+      messageRequest: 0
     };
     const notice = $("notice");
 
@@ -791,8 +792,18 @@
       const chat = appState.chats.find((item) => item.id === chatId);
       if (!chat) return;
 
+      clearInterval(appState.pollTimer);
+      appState.pollTimer = null;
+
+      // Немедленно инвалидируем запросы предыдущего чата.
+      appState.messageRequest += 1;
       appState.activeChat = chat;
-      appState.messageSignature = "";
+      appState.messageSignature = null;
+
+      const messagesContainer = $("messages");
+      messagesContainer.innerHTML = `<div class="empty-state">Загрузка…</div>`;
+      delete messagesContainer.dataset.renderedOnce;
+
       $("messengerArea").classList.add("chat-open");
       replayAnimation(document.querySelector(".main-chat"), "chat-transition");
       $("activeChatTitle").textContent = chat.title || chat.username || "Чат";
@@ -805,17 +816,26 @@
       $("composerForm").classList.toggle("hidden", !canWrite);
 
       renderChats();
-      await loadMessages();
+      await loadMessages({ force: true });
 
-      clearInterval(appState.pollTimer);
-      appState.pollTimer = setInterval(loadMessages, 3000);
+      // Не запускаем таймер, если пользователь уже успел открыть другой чат.
+      if (appState.activeChat?.id === chatId) {
+        appState.pollTimer = setInterval(() => loadMessages(), 3000);
+      }
     }
 
     async function loadMessages({ force = false } = {}) {
-      if (!appState.activeChat) return;
+      const chatId = appState.activeChat?.id;
+      if (!chatId) return;
+
+      const requestId = ++appState.messageRequest;
 
       try {
-        const data = await authApi(`/api/chats/${encodeURIComponent(appState.activeChat.id)}/messages`);
+        const data = await authApi(`/api/chats/${encodeURIComponent(chatId)}/messages`);
+
+        // Ответ старого чата не должен перерисовать уже открытый новый чат.
+        if (requestId !== appState.messageRequest || appState.activeChat?.id !== chatId) return;
+
         const messages = data.messages || [];
         const signature = messages
           .map((message) => `${message.id}:${message.edited_at || ""}:${message.text}`)
@@ -826,6 +846,7 @@
           renderMessages(messages);
         }
       } catch (error) {
+        if (requestId !== appState.messageRequest || appState.activeChat?.id !== chatId) return;
         $("messages").innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
       }
     }
