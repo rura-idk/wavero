@@ -2,7 +2,7 @@ const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "Access-Control-Max-Age": "86400",
   "Cache-Control": "no-store",
 };
@@ -20,7 +20,7 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "0.5.0",
+          version: "0.6.0",
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
           databaseConfigured: Boolean(env.DB),
         });
@@ -69,6 +69,15 @@ export default {
 
       if (messagesMatch && request.method === "POST") {
         return sendMessage(request, env, decodeURIComponent(messagesMatch[1]));
+      }
+
+      const messageMatch = url.pathname.match(/^\/api\/messages\/([^/]+)$/);
+      if (messageMatch && request.method === "PATCH") {
+        return editMessage(request, env, decodeURIComponent(messageMatch[1]));
+      }
+
+      if (messageMatch && request.method === "DELETE") {
+        return deleteMessage(request, env, decodeURIComponent(messageMatch[1]));
       }
 
       return json({ ok: false, error: "Маршрут не найден." }, 404);
@@ -648,7 +657,7 @@ async function listMyChats(request, env) {
 
 async function ensureChatAccess(env, chatId, userId) {
   const membership = await env.DB.prepare(`
-    SELECT cm.role, c.type, c.title, c.is_system
+    SELECT cm.role, c.type, c.title, c.is_system, c.id AS chat_id
     FROM chat_members cm
     INNER JOIN chats c ON c.id = cm.chat_id
     WHERE cm.chat_id = ?1
@@ -665,7 +674,7 @@ async function ensureChatAccess(env, chatId, userId) {
 
 async function listMessages(request, env, chatId, url) {
   const user = await authenticatedD1User(request, env);
-  await ensureChatAccess(env, chatId, user.id);
+  const membership = await ensureChatAccess(env, chatId, user.id);
 
   const limitRaw = Number.parseInt(url.searchParams.get("limit") || "50", 10);
   const limit = Math.max(1, Math.min(100, Number.isFinite(limitRaw) ? limitRaw : 50));
@@ -680,15 +689,25 @@ async function listMessages(request, env, chatId, url) {
       m.created_at,
       m.edited_at,
       u.username AS sender_username,
-      u.display_name AS sender_display_name
+      u.display_name AS sender_display_name,
+      CASE
+        WHEN m.sender_user_id = ?2 THEN 1
+        ELSE 0
+      END AS can_edit,
+      CASE
+        WHEN m.sender_user_id = ?2
+          OR ?3 IN ('owner', 'admin', 'moderator')
+        THEN 1
+        ELSE 0
+      END AS can_delete
     FROM messages m
     LEFT JOIN users u ON u.id = m.sender_user_id
     WHERE m.chat_id = ?1
       AND m.deleted_at IS NULL
       AND m.deleted_for_everyone = 0
     ORDER BY m.created_at DESC
-    LIMIT ?2
-  `).bind(chatId, limit).all();
+    LIMIT ?4
+  `).bind(chatId, user.id, membership.role, limit).all();
 
   const messages = (result.results || []).reverse();
 
@@ -744,8 +763,114 @@ async function sendMessage(request, env, chatId) {
       type: "text",
       text,
       created_at: now,
+      edited_at: null,
+      can_edit: 1,
+      can_delete: 1,
     },
   }, 201);
+}
+
+
+async function messageWithAccess(env, messageId, userId) {
+  const row = await env.DB.prepare(`
+    SELECT
+      m.id,
+      m.chat_id,
+      m.sender_user_id,
+      m.deleted_at,
+      m.deleted_for_everyone,
+      cm.role
+    FROM messages m
+    INNER JOIN chat_members cm
+      ON cm.chat_id = m.chat_id
+      AND cm.user_id = ?2
+      AND cm.left_at IS NULL
+      AND cm.is_banned = 0
+    INNER JOIN chats c
+      ON c.id = m.chat_id
+      AND c.deleted_at IS NULL
+    WHERE m.id = ?1
+    LIMIT 1
+  `).bind(messageId, userId).first();
+
+  if (!row) {
+    throw new ApiError(404, "Сообщение не найдено.");
+  }
+
+  return row;
+}
+
+async function editMessage(request, env, messageId) {
+  const user = await authenticatedD1User(request, env);
+  const message = await messageWithAccess(env, messageId, user.id);
+
+  if (message.sender_user_id !== user.id) {
+    throw new ApiError(403, "Можно изменять только свои сообщения.");
+  }
+
+  if (message.deleted_at || Number(message.deleted_for_everyone) === 1) {
+    throw new ApiError(409, "Удалённое сообщение нельзя изменить.");
+  }
+
+  const body = await readJson(request);
+  const text = clean(body.text);
+
+  if (!text) {
+    throw new ApiError(400, "Сообщение не может быть пустым.");
+  }
+
+  if (text.length > 4000) {
+    throw new ApiError(400, "Сообщение слишком длинное.");
+  }
+
+  const editedAt = new Date().toISOString();
+
+  await env.DB.prepare(`
+    UPDATE messages
+    SET text = ?1,
+        edited_at = ?2
+    WHERE id = ?3
+  `).bind(text, editedAt, messageId).run();
+
+  return json({
+    ok: true,
+    message: {
+      id: messageId,
+      text,
+      edited_at: editedAt,
+    },
+  });
+}
+
+async function deleteMessage(request, env, messageId) {
+  const user = await authenticatedD1User(request, env);
+  const message = await messageWithAccess(env, messageId, user.id);
+
+  const canModerate = ["owner", "admin", "moderator"].includes(message.role);
+  const isAuthor = message.sender_user_id === user.id;
+
+  if (!isAuthor && !canModerate) {
+    throw new ApiError(403, "Недостаточно прав для удаления сообщения.");
+  }
+
+  if (message.deleted_at || Number(message.deleted_for_everyone) === 1) {
+    return json({ ok: true, deleted: true });
+  }
+
+  const deletedAt = new Date().toISOString();
+
+  await env.DB.prepare(`
+    UPDATE messages
+    SET deleted_for_everyone = 1,
+        deleted_at = ?1
+    WHERE id = ?2
+  `).bind(deletedAt, messageId).run();
+
+  return json({
+    ok: true,
+    deleted: true,
+    message_id: messageId,
+  });
 }
 
 async function sendVerification(env, idToken) {
