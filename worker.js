@@ -22,7 +22,7 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "0.7.2",
+          version: "0.7.6",
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
           databaseConfigured: Boolean(env.DB),
         });
@@ -106,7 +106,7 @@ export default {
         url.pathname === "/health";
 
       if (request.method === "GET" && !isApiPath) {
-        return html(indexHtml);
+        return html(renderIndexHtml(indexHtml, env));
       }
 
       return json({ ok: false, error: "Маршрут не найден." }, 404);
@@ -1095,6 +1095,22 @@ class ApiError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+function renderIndexHtml(template, env) {
+  const apiKey = String(env.FIREBASE_API_KEY || "").trim();
+  const projectId = String(env.FIREBASE_PROJECT_ID || "").trim();
+
+  if (!apiKey || !projectId) {
+    throw new ApiError(500, "Firebase не настроен на сервере.");
+  }
+
+  const authDomain = `${projectId}.firebaseapp.com`;
+
+  return template
+    .replace("__FIREBASE_API_KEY_JSON__", JSON.stringify(apiKey))
+    .replace("__FIREBASE_AUTH_DOMAIN_JSON__", JSON.stringify(authDomain))
+    .replace("__FIREBASE_PROJECT_ID_JSON__", JSON.stringify(projectId));
 }
 
 function html(content, status = 200) {

@@ -563,12 +563,9 @@
     } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
     const firebaseConfig = {
-      apiKey: "AIzaSyCyC4NE7v2PJlSlsHxATGUVe6Iy4XxDbtc",
-      authDomain: "wavero111.firebaseapp.com",
-      projectId: "wavero111",
-      storageBucket: "wavero111.firebasestorage.app",
-      messagingSenderId: "132314522575",
-      appId: "1:132314522575:web:e3888381ffe3028bc2e8ba"
+      apiKey: __FIREBASE_API_KEY_JSON__,
+      authDomain: __FIREBASE_AUTH_DOMAIN_JSON__,
+      projectId: __FIREBASE_PROJECT_ID_JSON__
     };
 
     try {
@@ -604,9 +601,9 @@
 
 
   <script>
-    const WAVERO_BUILD = "0.7.5-google-sign-in";
+    const WAVERO_BUILD = "0.7.6-google-key-from-worker";
     const API_BASE = window.location.origin;
-    const WEB_VERSION = "0.7.5";
+    const WEB_VERSION = "0.7.6";
     window.WAVERO_BUILD = WAVERO_BUILD;
     const $ = (id) => document.getElementById(id);
 
