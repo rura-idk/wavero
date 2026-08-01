@@ -2,14 +2,13 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Wavero</title>
-  <meta name="wavero-build" content="0.7.1-direct-chat-mobile">
-  <meta name="wavero-build" content="0.7.0-same-origin">
+  <meta name="wavero-build" content="0.7.4-responsive-mobile">
   <style>
     :root {
       --bg:#050505; --surface:#0c0c0c; --surface2:#111; --line:#242424;
@@ -185,6 +184,121 @@
       .mobile-back{display:grid}
     }
     @media(max-width:860px){.page{grid-template-columns:1fr}.intro{min-height:42vh;border-right:0;border-bottom:1px solid var(--line)}.auth{min-height:58vh}h1{font-size:58px}.intro:after{opacity:.45}}
+
+
+    /* Responsive application shell: phones, tablets, landscape and short screens. */
+    html{width:100%;height:100%;-webkit-text-size-adjust:100%}
+    body{width:100%;min-height:100%;min-height:100dvh}
+    body.messenger-open{height:var(--app-height,100dvh);min-height:0;overflow:hidden;overscroll-behavior:none}
+    .messenger{
+      inset:0 auto auto 0;
+      width:100%;
+      height:var(--app-height,100dvh);
+      min-height:0;
+      overflow:hidden;
+      grid-template-columns:minmax(280px,340px) minmax(0,1fr);
+    }
+    .sidebar,.main-chat{height:100%;min-height:0;overflow:hidden}
+    .sidebar-head,.chat-head{flex:0 0 auto;min-height:64px;padding-top:env(safe-area-inset-top)}
+    .chat-list{min-height:0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+    .main-chat{grid-template-rows:auto minmax(0,1fr) auto}
+    .messages{
+      position:relative;
+      min-width:0;
+      min-height:0;
+      overflow-x:hidden;
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      -webkit-overflow-scrolling:touch;
+      isolation:isolate;
+      background:var(--bg);
+    }
+    .messages-status{
+      position:absolute;
+      inset:0;
+      z-index:20;
+      display:grid;
+      place-items:center;
+      padding:24px;
+      background:var(--bg);
+      color:var(--muted);
+      text-align:center;
+      line-height:1.5;
+    }
+    .composer{
+      position:relative;
+      z-index:25;
+      flex:0 0 auto;
+      min-width:0;
+      padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    }
+    .composer input{min-width:0;min-height:46px;font-size:16px}
+    .send-button{flex:0 0 48px;min-height:48px}
+    .search-panel{max-height:min(680px,calc(var(--app-height,100dvh) - 24px))}
+    .search-results{min-height:0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+
+    @media(max-width:860px){
+      .messenger{grid-template-columns:minmax(0,1fr)}
+      .sidebar,.main-chat{width:100%;height:100%}
+      .main-chat{display:none}
+      .messenger.chat-open .sidebar{display:none}
+      .messenger.chat-open .main-chat{display:grid}
+      .mobile-back{display:grid}
+      .sidebar-head{padding-left:14px;padding-right:14px}
+      .chat-head{padding-left:10px;padding-right:12px}
+      .messages{padding:16px 12px}
+      .bubble{max-width:90%;overflow-wrap:anywhere}
+      .composer{padding:9px 10px calc(9px + env(safe-area-inset-bottom));gap:8px}
+      .search-sheet{padding:0;align-items:end}
+      .search-panel{
+        width:100%;
+        max-height:min(86dvh,calc(var(--app-height,100dvh) - 8px));
+        border-radius:20px 20px 0 0;
+        padding-bottom:env(safe-area-inset-bottom);
+      }
+      .search-results{max-height:calc(var(--app-height,100dvh) - 116px)}
+      .toast-stack{left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom))}
+      .toast{width:100%;min-width:0;max-width:none}
+    }
+
+    @media(max-width:520px){
+      .sidebar-brand{font-size:20px}
+      .sidebar-head{gap:10px}
+      .sidebar-head>div:last-child{gap:6px!important}
+      .icon-button{width:38px;height:38px;border-radius:11px}
+      .text-button{height:38px;padding:0 11px}
+      .chat-row{padding:11px 9px;grid-template-columns:42px 1fr;gap:10px}
+      .avatar{width:42px;height:42px}
+      .chat-head-title{max-width:calc(100vw - 110px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .messages{gap:9px;padding:12px 9px}
+      .bubble{max-width:92%;padding:10px 12px;border-radius:15px;font-size:15px}
+      .composer input{padding:11px 12px}
+      .send-button{flex-basis:44px;min-height:44px;border-radius:13px}
+      .user-result{grid-template-columns:42px 1fr auto;padding:11px 9px}
+      .start-label{display:none}
+    }
+
+    @media(max-height:560px){
+      .sidebar-head,.chat-head{min-height:52px}
+      .sidebar-head{padding-top:max(0px,env(safe-area-inset-top))}
+      .chat-head{padding-top:max(0px,env(safe-area-inset-top))}
+      .messages{padding-top:8px;padding-bottom:8px}
+      .composer{padding-top:6px;padding-bottom:calc(6px + env(safe-area-inset-bottom))}
+      .composer input{min-height:40px;padding-top:9px;padding-bottom:9px}
+      .send-button{min-height:40px;flex-basis:42px}
+      .icon-button,.text-button{height:36px;min-height:36px}
+      .icon-button{width:36px}
+    }
+
+    @media(max-width:860px) and (orientation:landscape) and (max-height:560px){
+      .page{display:block;min-height:var(--app-height,100dvh)}
+      .intro{display:none}
+      .auth{min-height:var(--app-height,100dvh);padding:14px 18px;align-items:flex-start;overflow:auto}
+      .card{max-width:560px;padding-bottom:20px}
+      .tabs{margin-bottom:22px}
+      .search-panel{max-height:calc(var(--app-height,100dvh) - 4px)}
+    }
+
   </style>
 </head>
 <body>
@@ -370,11 +484,26 @@
   <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 
   <script>
-    const WAVERO_BUILD = "0.7.3-chat-switch-fix";
+    const WAVERO_BUILD = "0.7.4-responsive-mobile";
     const API_BASE = window.location.origin;
-    const WEB_VERSION = "0.7.3";
+    const WEB_VERSION = "0.7.4";
     window.WAVERO_BUILD = WAVERO_BUILD;
     const $ = (id) => document.getElementById(id);
+
+
+    function syncAppViewport() {
+      const viewport = window.visualViewport;
+      const height = viewport?.height || window.innerHeight || document.documentElement.clientHeight;
+      document.documentElement.style.setProperty("--app-height", `${Math.max(240, Math.round(height))}px`);
+    }
+
+    syncAppViewport();
+    window.addEventListener("resize", syncAppViewport, { passive: true });
+    window.addEventListener("orientationchange", () => setTimeout(syncAppViewport, 80), { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", syncAppViewport, { passive: true });
+      window.visualViewport.addEventListener("scroll", syncAppViewport, { passive: true });
+    }
 
     const appState = {
       token: null,
@@ -707,6 +836,8 @@
     async function showProfile(user) {
       appState.user = user;
 
+      syncAppViewport();
+      document.body.classList.add("messenger-open");
       document.querySelector(".page").classList.add("hidden");
       $("profileArea").classList.add("hidden");
       $("messengerArea").classList.remove("hidden");
@@ -750,13 +881,13 @@
       return data;
     }
 
-    async function loadChats() {
+    async function loadChats({ autoOpen = true } = {}) {
       const data = await authApi("/api/me/chats");
       appState.user = data.user;
       appState.chats = data.chats || [];
       renderChats();
 
-      if (!appState.activeChat && appState.chats.length) {
+      if (autoOpen && !appState.activeChat && appState.chats.length) {
         await openChat(appState.chats[0].id);
       }
     }
@@ -788,6 +919,21 @@
       }
     }
 
+
+    function showMessagesStatus(text) {
+      const container = $("messages");
+      const status = document.createElement("div");
+      status.className = "messages-status";
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      status.textContent = text;
+      container.replaceChildren(status);
+      container.scrollTop = 0;
+      delete container.dataset.renderedOnce;
+      // Force the blank/status frame to paint before any network response.
+      void container.offsetHeight;
+    }
+
     async function openChat(chatId) {
       const chat = appState.chats.find((item) => item.id === chatId);
       if (!chat) return;
@@ -800,12 +946,9 @@
       appState.activeChat = chat;
       appState.messageSignature = null;
 
-      const messagesContainer = $("messages");
-      messagesContainer.innerHTML = `<div class="empty-state">Загрузка…</div>`;
-      delete messagesContainer.dataset.renderedOnce;
+      showMessagesStatus("Загрузка…");
 
       $("messengerArea").classList.add("chat-open");
-      replayAnimation(document.querySelector(".main-chat"), "chat-transition");
       $("activeChatTitle").textContent = chat.title || chat.username || "Чат";
       $("activeChatSubtitle").textContent =
         chat.type === "channel" ? "Канал" :
@@ -859,7 +1002,7 @@
       container.innerHTML = "";
 
       if (!messages.length) {
-        container.innerHTML = `<div class="empty-state">Здесь пока нет сообщений</div>`;
+        showMessagesStatus("Здесь пока нет сообщений");
         return;
       }
 
@@ -1349,8 +1492,19 @@
       try {
         const data = await createDirectChatRequest(targetUserId);
 
+        clearInterval(appState.pollTimer);
+        appState.pollTimer = null;
+        appState.messageRequest += 1;
+        appState.activeChat = null;
+        appState.messageSignature = null;
+        $("activeChatTitle").textContent = "Новый диалог";
+        $("activeChatSubtitle").textContent = "Диалог";
+        $("composerForm").classList.add("hidden");
+        showMessagesStatus("Открываем диалог…");
+        $("messengerArea").classList.add("chat-open");
+
         closeSearchSheet();
-        await loadChats();
+        await loadChats({ autoOpen: false });
         await openChat(data.chat_id);
         showToast(data.created ? "Диалог создан." : "Диалог открыт.");
       } catch (error) {
@@ -1377,6 +1531,7 @@
       setTimeout(() => {
         messenger.classList.add("hidden");
         messenger.classList.remove("leaving");
+        document.body.classList.remove("messenger-open");
         document.querySelector(".page").classList.remove("hidden");
         tab("login");
         setNotice();
