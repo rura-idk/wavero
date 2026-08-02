@@ -1,46 +1,41 @@
-# Wavero 1.0 Core
+# Wavero
 
-Интегрированный релиз текстового мессенджера для Cloudflare Workers + D1 + Firebase Authentication.
+Wavero is a Cloudflare Workers messenger backed by D1. The current web client is
+served by the Worker; email/password authentication uses Firebase Identity
+Toolkit and Yandex ID uses a server-side OAuth flow.
 
-## Что включено
+## Source layout
 
-- Email/password и Google Sign-in.
-- Личные диалоги, группы и каналы.
-- Создание, редактирование и удаление сообщений.
-- Ответы, реакции, закрепление и поиск сообщений.
-- Счётчики непрочитанных сообщений.
-- Участники, роли, приглашения и публичные username чатов.
-- Профиль, тема, звуки и блокировки.
-- Жалобы и панель администратора.
-- Адаптивная мобильная раскладка с Visual Viewport и safe-area.
-- Структурированные ошибки `WAVERO_ERROR` с `code` и `request_id`.
+- `index.html` is the only editable web UI source.
+- `worker.js` contains the API and a generated embedded copy of `index.html`.
+- `scripts/embed-ui.mjs` verifies or regenerates that embedded copy.
+- `migrations/*.sql` are the ordered, one-time D1 migrations.
+- `schema.sql` is generated from migrations for a fresh local/test database.
 
-## Развёртывание
+Do not edit the `indexHtml` declaration in `worker.js` manually. Run
+`npm run build` after changing `index.html`.
 
-1. Загрузите в корень GitHub-репозитория файлы `worker.js`, `index.html`, `package.json` и `wrangler.jsonc` с заменой существующих.
-2. Cloudflare автоматически выполнит сборку и развёртывание.
-3. Worker сам создаёт дополнительные таблицы D1 при первом API-запросе. Файл `migrations/001_wavero_1_core.sql` оставлен для ручного резервного запуска.
-4. Откройте `/health`. Ожидается:
+## Local checks
 
-```json
-{
-  "version": "1.0.0-core",
-  "schemaVersion": "1.0.0",
-  "schemaReady": true
-}
+```bash
+npm install
+npm run build
+npm run check
+npm run db:migrate:local
+npx wrangler dev --local
 ```
 
-## Диагностика
+The application never applies migrations during a user request. Apply each D1
+migration once as a separate deployment step.
 
-В Cloudflare Logs ищите `WAVERO_ERROR`. Запись содержит:
+## Remote deployment order
 
-- `code` — функциональный код ошибки;
-- `requestId` — идентификатор запроса;
-- `method` и `url`;
-- `message` и stack trace.
+```bash
+npm ci
+npm run check
+npm run db:migrate:remote
+npm run deploy
+```
 
-Сообщайте `code`, `requestId` и `message`, а не весь лог целиком.
-
-## Ограничения этого релиза
-
-Звонки, APK/EXE и бинарные вложения через R2 не входят в Core 1.0. Для них требуется отдельная инфраструктура WebRTC/Durable Objects/R2.
+Do not put Cloudflare, Firebase, Yandex, or R2 credentials in this repository.
+See `docs/deployment.md` for environment variables, rollout, and rollback.

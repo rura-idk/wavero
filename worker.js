@@ -9,164 +9,34 @@ const JSON_HEADERS = {
   "Cache-Control": "no-store",
 };
 
-const EXTENSION_SCHEMA = `CREATE TABLE IF NOT EXISTS wavero_meta (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS wavero_profiles (
-  user_id TEXT PRIMARY KEY,
-  bio TEXT NOT NULL DEFAULT '',
-  avatar_url TEXT NOT NULL DEFAULT '',
-  theme TEXT NOT NULL DEFAULT 'dark' CHECK (theme IN ('dark','light','system')),
-  sound_enabled INTEGER NOT NULL DEFAULT 1 CHECK (sound_enabled IN (0,1)),
-  notifications_enabled INTEGER NOT NULL DEFAULT 1 CHECK (notifications_enabled IN (0,1)),
-  updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS wavero_chat_state (
-  chat_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  last_read_at TEXT,
-  archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0,1)),
-  muted INTEGER NOT NULL DEFAULT 0 CHECK (muted IN (0,1)),
-  updated_at TEXT NOT NULL,
-  PRIMARY KEY (chat_id, user_id)
-);
-CREATE TABLE IF NOT EXISTS wavero_message_replies (
-  message_id TEXT PRIMARY KEY,
-  reply_to_message_id TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS wavero_message_reactions (
-  message_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  emoji TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY (message_id, user_id, emoji)
-);
-CREATE TABLE IF NOT EXISTS wavero_pinned_messages (
-  chat_id TEXT NOT NULL,
-  message_id TEXT NOT NULL,
-  pinned_by_user_id TEXT NOT NULL,
-  pinned_at TEXT NOT NULL,
-  PRIMARY KEY (chat_id, message_id)
-);
-CREATE TABLE IF NOT EXISTS wavero_invites (
-  id TEXT PRIMARY KEY,
-  chat_id TEXT NOT NULL,
-  code TEXT NOT NULL UNIQUE,
-  created_by_user_id TEXT NOT NULL,
-  expires_at TEXT,
-  max_uses INTEGER,
-  use_count INTEGER NOT NULL DEFAULT 0,
-  is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS wavero_blocks_v1 (
-  blocker_user_id TEXT NOT NULL,
-  blocked_user_id TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY (blocker_user_id, blocked_user_id)
-);
-CREATE TABLE IF NOT EXISTS wavero_reports_v1 (
-  id TEXT PRIMARY KEY,
-  reporter_user_id TEXT NOT NULL,
-  target_type TEXT NOT NULL CHECK (target_type IN ('user','chat','message')),
-  target_id TEXT NOT NULL,
-  reason TEXT NOT NULL,
-  details TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','reviewing','resolved','rejected')),
-  resolution TEXT NOT NULL DEFAULT '',
-  handled_by_user_id TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS wavero_admin_actions (
-  id TEXT PRIMARY KEY,
-  admin_user_id TEXT NOT NULL,
-  action TEXT NOT NULL,
-  target_type TEXT NOT NULL,
-  target_id TEXT NOT NULL,
-  details TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS wavero_oauth_identities (
-  provider TEXT NOT NULL,
-  provider_user_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  provider_login TEXT NOT NULL DEFAULT '',
-  provider_email TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  PRIMARY KEY (provider, provider_user_id)
-);
-CREATE TABLE IF NOT EXISTS wavero_access_sessions (
-  token_hash TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  provider TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
-  last_seen_at TEXT NOT NULL,
-  revoked_at TEXT
-);
-CREATE TABLE IF NOT EXISTS wavero_oauth_tickets (
-  ticket_hash TEXT PRIMARY KEY,
-  access_token TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
-  used_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_wavero_chat_state_user ON wavero_chat_state(user_id, archived, updated_at);
-CREATE INDEX IF NOT EXISTS idx_wavero_reactions_message ON wavero_message_reactions(message_id);
-CREATE INDEX IF NOT EXISTS idx_wavero_replies_target ON wavero_message_replies(reply_to_message_id);
-CREATE INDEX IF NOT EXISTS idx_wavero_pins_chat ON wavero_pinned_messages(chat_id, pinned_at);
-CREATE INDEX IF NOT EXISTS idx_wavero_invites_chat ON wavero_invites(chat_id, is_active);
-CREATE INDEX IF NOT EXISTS idx_wavero_blocks_blocked ON wavero_blocks_v1(blocked_user_id);
-CREATE INDEX IF NOT EXISTS idx_wavero_reports_status ON wavero_reports_v1(status, created_at);
-CREATE INDEX IF NOT EXISTS idx_wavero_oauth_identity_user ON wavero_oauth_identities(user_id, provider);
-CREATE INDEX IF NOT EXISTS idx_wavero_access_sessions_user ON wavero_access_sessions(user_id, expires_at);
-CREATE INDEX IF NOT EXISTS idx_wavero_oauth_tickets_expiry ON wavero_oauth_tickets(expires_at, used_at);
-INSERT INTO wavero_meta(key, value, updated_at)
-VALUES ('schema_version', '1.0.5', CURRENT_TIMESTAMP)
-ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;`;
-let schemaPromise = null;
+const EXPECTED_SCHEMA_VERSION = "2";
 
-function schemaStatements() {
-  // D1 may interpret line breaks passed to DDL execution as separate SQL lines.
-  // Split by statement terminators and collapse every statement to one line.
-  return EXTENSION_SCHEMA
-    .split(";")
-    .map((statement) => statement.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
-}
+async function verifySchema(env) {
+  if (!env.DB) throw new ApiError(503, "База данных не подключена.", "DB_NOT_CONFIGURED");
 
-async function ensureSchema(env) {
-  if (!env.DB) throw new ApiError(500, "База данных не подключена.", "DB_NOT_CONFIGURED");
-
-  if (!schemaPromise) {
-    schemaPromise = (async () => {
-      const statements = schemaStatements();
-      for (let index = 0; index < statements.length; index += 1) {
-        const statement = statements[index];
-        try {
-          await env.DB.prepare(statement).run();
-        } catch (error) {
-          console.error("WAVERO_SCHEMA_ERROR", {
-            step: index + 1,
-            statement: statement.slice(0, 180),
-            message: error?.message,
-            stack: error?.stack,
-          });
-          throw new ApiError(500, "Не удалось подготовить структуру данных Wavero.", "SCHEMA_INIT_FAILED");
-        }
-      }
-      return true;
-    })().catch((error) => {
-      schemaPromise = null;
-      throw error;
-    });
+  let meta;
+  try {
+    meta = await env.DB.prepare(
+      "SELECT value FROM wavero_meta WHERE key = 'schema_version' LIMIT 1"
+    ).first();
+  } catch (error) {
+    throw new ApiError(
+      503,
+      "База данных требует применения миграций.",
+      "SCHEMA_MIGRATION_REQUIRED",
+      { cause: error }
+    );
   }
 
-  return schemaPromise;
+  if (String(meta?.value || "") !== EXPECTED_SCHEMA_VERSION) {
+    throw new ApiError(
+      503,
+      "Версия базы данных не соответствует приложению.",
+      "SCHEMA_VERSION_MISMATCH"
+    );
+  }
+
+  return true;
 }
 
 export default {
@@ -185,14 +55,16 @@ export default {
       if (request.method === "POST" && url.pathname === "/api/auth/logout") return logoutSession(request, env);
 
       if (request.method === "GET" && url.pathname === "/health") {
+        let database = false;
         let schemaReady = false;
         let schemaVersion = null;
         if (env.DB) {
           try {
-            await ensureSchema(env);
+            await env.DB.prepare("SELECT 1 AS ok").first();
+            database = true;
             const meta = await env.DB.prepare("SELECT value FROM wavero_meta WHERE key='schema_version' LIMIT 1").first();
             schemaVersion = meta?.value || null;
-            schemaReady = schemaVersion === "1.0.5";
+            schemaReady = schemaVersion === EXPECTED_SCHEMA_VERSION;
           } catch (error) {
             console.error("WAVERO_HEALTH_SCHEMA", { requestId, message: error?.message, stack: error?.stack });
           }
@@ -203,9 +75,10 @@ export default {
           version: "1.0.6-embedded-ui",
           schemaVersion,
           schemaReady,
-          firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
+          database,
+          firebaseConfigured: Boolean(env.FIREBASE_API_KEY),
           yandexConfigured: Boolean(env.YANDEX_CLIENT_ID && env.YANDEX_CLIENT_SECRET),
-          databaseConfigured: Boolean(env.DB),
+          r2Configured: Boolean(env.FILES),
         });
       }
 
@@ -223,8 +96,8 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/bootstrap") return bootstrap(request, env);
       if (request.method === "GET" && url.pathname === "/api/me/chats") return listMyChats(request, env);
 
-      // Дополнительная схема создаётся только после успешной авторизации.
-      if (isApi) await ensureSchema(env);
+      // Миграции применяются отдельно; API только проверяет их версию.
+      if (isApi) await verifySchema(env);
       if (request.method === "GET" && url.pathname === "/api/me/profile") return getMyProfile(request, env);
       if (request.method === "PATCH" && url.pathname === "/api/me/profile") return updateMyProfile(request, env);
       if (request.method === "GET" && url.pathname === "/api/me/blocks") return listBlocks(request, env);
@@ -366,7 +239,7 @@ async function yandexAuthCallback(request, env) {
       return redirectToApp(request, { yandex_error: "state_mismatch" }, { "Set-Cookie": clearCookie });
     }
 
-    await ensureSchema(env);
+    await verifySchema(env);
     const oauthToken = await exchangeYandexCode(env, code);
     const profile = await fetchYandexProfile(env, oauthToken);
     const user = await findOrCreateYandexUser(env, profile);
@@ -446,7 +319,7 @@ async function completeYandexAuth(request, env) {
 async function logoutSession(request, env) {
   const token = bearerToken(request);
   if (token?.startsWith("wvr_")) {
-    await ensureSchema(env);
+    await verifySchema(env);
     const hash = await sha256Hex(token);
     await env.DB.prepare(`
       UPDATE wavero_access_sessions

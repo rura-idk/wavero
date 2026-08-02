@@ -1,0 +1,12 @@
+node_modules/
+.npm-cache/
+.wrangler/
+.xdg/
+test-results/
+playwright-report/
+screenshots/
+.env
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.log

@@ -4,8 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/embed-ui.mjs --write && node scripts/build-schema.mjs --write",
+    "check:ui": "node scripts/embed-ui.mjs --check",
+    "check:schema": "node scripts/build-schema.mjs --check",
     "deploy": "wrangler deploy",
-    "check": "node --check worker.js"
+    "check": "npm run check:ui && npm run check:schema && node --check worker.js",
+    "db:migrate:local": "wrangler d1 migrations apply wavero-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply wavero-db --remote"
   },
   "devDependencies": {
     "wrangler": "^4.68.0"
