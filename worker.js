@@ -126,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_wavero_oauth_identity_user ON wavero_oauth_identi
 CREATE INDEX IF NOT EXISTS idx_wavero_access_sessions_user ON wavero_access_sessions(user_id, expires_at);
 CREATE INDEX IF NOT EXISTS idx_wavero_oauth_tickets_expiry ON wavero_oauth_tickets(expires_at, used_at);
 INSERT INTO wavero_meta(key, value, updated_at)
-VALUES ('schema_version', '1.0.4', CURRENT_TIMESTAMP)
+VALUES ('schema_version', '1.0.5', CURRENT_TIMESTAMP)
 ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;`;
 let schemaPromise = null;
 
@@ -192,7 +192,7 @@ export default {
             await ensureSchema(env);
             const meta = await env.DB.prepare("SELECT value FROM wavero_meta WHERE key='schema_version' LIMIT 1").first();
             schemaVersion = meta?.value || null;
-            schemaReady = schemaVersion === "1.0.4";
+            schemaReady = schemaVersion === "1.0.5";
           } catch (error) {
             console.error("WAVERO_HEALTH_SCHEMA", { requestId, message: error?.message, stack: error?.stack });
           }
@@ -200,7 +200,7 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "1.0.4-yandex-sql-fix",
+          version: "1.0.5-chat-controls",
           schemaVersion,
           schemaReady,
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
@@ -228,6 +228,9 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/me/profile") return getMyProfile(request, env);
       if (request.method === "PATCH" && url.pathname === "/api/me/profile") return updateMyProfile(request, env);
       if (request.method === "GET" && url.pathname === "/api/me/blocks") return listBlocks(request, env);
+
+      const unblockMatch = url.pathname.match(/^\/api\/me\/blocks\/([^/]+)\/unblock$/);
+      if (unblockMatch && request.method === "POST") return unblockUser(request, env, decodeURIComponent(unblockMatch[1]));
 
       const blockMatch = url.pathname.match(/^\/api\/me\/blocks\/([^/]+)$/);
       if (blockMatch && request.method === "POST") return blockUser(request, env, decodeURIComponent(blockMatch[1]));
@@ -1657,40 +1660,127 @@ async function blockUser(request, env, targetId) {
   return json({ok:true,blocked:true});
 }
 async function unblockUser(request, env, targetId) {
-  const user=await authenticatedD1User(request,env);
-  await env.DB.prepare(`DELETE FROM wavero_blocks_v1 WHERE blocker_user_id=?1 AND blocked_user_id=?2`).bind(user.id,targetId).run();
-  return json({ok:true,blocked:false});
+  const user = await authenticatedD1User(request, env);
+  const result = await env.DB.prepare(`
+    DELETE FROM wavero_blocks_v1
+    WHERE blocker_user_id = ?1 AND blocked_user_id = ?2
+  `).bind(user.id, targetId).run();
+  return json({ ok: true, blocked: false, removed: Number(result.meta?.changes || 0) > 0 });
 }
 
 async function createChat(request, env) {
-  const user=await authenticatedD1User(request,env);
-  const body=await readJson(request);
-  const type=body.type === "channel" ? "channel" : "group";
-  const title=clean(body.title);
-  const description=clean(body.description).slice(0,500);
-  const isPublic=body.is_public?1:0;
-  const username=clean(body.username).toLowerCase().replace(/^@+/,"");
-  if (title.length<2||title.length>80) throw new ApiError(400,"Название должно содержать от 2 до 80 символов.","CHAT_TITLE_INVALID");
-  if (username && !/^[a-z0-9_]{4,32}$/.test(username)) throw new ApiError(400,"Username чата: 4–32 символа, латинские буквы, цифры и _.","CHAT_USERNAME_INVALID");
-  if (isPublic && !username) throw new ApiError(400,"Для публичного чата нужен username.","CHAT_USERNAME_REQUIRED");
-  if (username) {
-    const conflict=await env.DB.prepare(`SELECT id FROM chats WHERE username_normalized=?1 AND deleted_at IS NULL LIMIT 1`).bind(username).first();
-    if (conflict) throw new ApiError(409,"Этот username чата уже занят.","CHAT_USERNAME_TAKEN");
+  const user = await authenticatedD1User(request, env);
+  const body = await readJson(request);
+  const type = clean(body.type);
+  if (!['group', 'channel'].includes(type)) {
+    throw new ApiError(400, "Можно создать только группу или канал.", "CHAT_TYPE_INVALID");
   }
-  const chatId=crypto.randomUUID(); const now=new Date().toISOString();
-  await env.DB.batch([
-    env.DB.prepare(`INSERT INTO chats(id,type,title,username,username_normalized,description,owner_user_id,is_system,is_public,created_at,updated_at)
-      VALUES(?1,?2,?3,?4,?4,?5,?6,0,?7,?8,?8)`).bind(chatId,type,title,username||null,description,user.id,isPublic,now),
-    env.DB.prepare(`INSERT INTO chat_members(chat_id,user_id,role,joined_at) VALUES(?1,?2,'owner',?3)`).bind(chatId,user.id,now),
-  ]);
-  return json({ok:true,chat_id:chatId,created:true},201);
+
+  const title = clean(body.title).replace(/\s+/g, ' ');
+  const description = clean(body.description).slice(0, 500);
+  const isPublic = body.is_public ? 1 : 0;
+  const username = clean(body.username).normalize('NFKC').toLowerCase().replace(/^@+/, '');
+  const kind = type === 'channel' ? 'канала' : 'группы';
+
+  if (title.length < 2 || title.length > 80) {
+    throw new ApiError(400, "Название должно содержать от 2 до 80 символов.", "CHAT_TITLE_INVALID");
+  }
+  if (username && !/^[a-z0-9_]{4,32}$/.test(username)) {
+    throw new ApiError(400, "Username: 4–32 символа, латинские буквы, цифры и _.", "CHAT_USERNAME_INVALID");
+  }
+  if (isPublic && !username) {
+    throw new ApiError(400, `Для публичного ${kind} укажите username.`, "CHAT_USERNAME_REQUIRED");
+  }
+  if (username) {
+    const conflict = await env.DB.prepare(`
+      SELECT id FROM chats
+      WHERE username_normalized = ?1 AND deleted_at IS NULL
+      LIMIT 1
+    `).bind(username).first();
+    if (conflict) throw new ApiError(409, "Этот username уже занят.", "CHAT_USERNAME_TAKEN");
+  }
+
+  const chatId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  try {
+    await env.DB.batch([
+      env.DB.prepare(`
+        INSERT INTO chats (
+          id, type, title, username, username_normalized, description,
+          owner_user_id, is_system, is_public, created_at, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?4, ?5, ?6, 0, ?7, ?8, ?8)
+      `).bind(chatId, type, title, username || null, description, user.id, isPublic, now),
+      env.DB.prepare(`
+        INSERT INTO chat_members (chat_id, user_id, role, joined_at)
+        VALUES (?1, ?2, 'owner', ?3)
+      `).bind(chatId, user.id, now),
+    ]);
+  } catch (error) {
+    console.error('CHAT_CREATE_DB_ERROR', {
+      type,
+      isPublic,
+      hasUsername: Boolean(username),
+      message: error?.message,
+      stack: error?.stack,
+    });
+    const message = String(error?.message || '');
+    if (/UNIQUE constraint failed: chats\.(username|username_normalized)/i.test(message)) {
+      throw new ApiError(409, "Этот username уже занят.", "CHAT_USERNAME_TAKEN");
+    }
+    throw new ApiError(500, `Не удалось создать ${kind}.`, "CHAT_CREATE_DB_FAILED");
+  }
+
+  return json({
+    ok: true,
+    created: true,
+    chat_id: chatId,
+    chat: { id: chatId, type, title, username: username || null, description, is_public: isPublic, role: 'owner', member_count: 1 },
+  }, 201);
 }
 
 async function getChat(request, env, chatId) {
-  const user=await authenticatedD1User(request,env);
-  const membership=await ensureChatAccess(env,chatId,user.id);
-  const [members,pins] = await Promise.all([queryChatMembers(env,chatId), env.DB.prepare(`SELECT pm.message_id,pm.pinned_at,m.text,u.display_name AS sender_display_name FROM wavero_pinned_messages pm INNER JOIN messages m ON m.id=pm.message_id LEFT JOIN users u ON u.id=m.sender_user_id WHERE pm.chat_id=?1 ORDER BY pm.pinned_at DESC LIMIT 20`).bind(chatId).all()]);
-  return json({ok:true,chat:membership,members,pins:pins.results||[]});
+  const user = await authenticatedD1User(request, env);
+  const membership = await ensureChatAccess(env, chatId, user.id);
+  const [members, pins] = await Promise.all([
+    queryChatMembers(env, chatId),
+    env.DB.prepare(`
+      SELECT pm.message_id, pm.pinned_at, m.text, u.display_name AS sender_display_name
+      FROM wavero_pinned_messages pm
+      INNER JOIN messages m ON m.id = pm.message_id
+      LEFT JOIN users u ON u.id = m.sender_user_id
+      WHERE pm.chat_id = ?1
+      ORDER BY pm.pinned_at DESC
+      LIMIT 20
+    `).bind(chatId).all(),
+  ]);
+
+  let peerUserId = null;
+  let peerBlockedByMe = 0;
+  if (membership.type === 'private') {
+    const peer = await env.DB.prepare(`
+      SELECT cm.user_id
+      FROM chat_members cm
+      WHERE cm.chat_id = ?1 AND cm.user_id <> ?2 AND cm.left_at IS NULL
+      LIMIT 1
+    `).bind(chatId, user.id).first();
+    peerUserId = peer?.user_id || null;
+    if (peerUserId) {
+      const blocked = await env.DB.prepare(`
+        SELECT 1 AS blocked
+        FROM wavero_blocks_v1
+        WHERE blocker_user_id = ?1 AND blocked_user_id = ?2
+        LIMIT 1
+      `).bind(user.id, peerUserId).first();
+      peerBlockedByMe = blocked ? 1 : 0;
+    }
+  }
+
+  return json({
+    ok: true,
+    chat: { ...membership, peer_user_id: peerUserId, peer_blocked_by_me: peerBlockedByMe },
+    members,
+    pins: pins.results || [],
+  });
 }
 
 async function updateChat(request, env, chatId) {
@@ -1740,17 +1830,61 @@ async function listChatMembers(request, env, chatId) {
   return json({ok:true,members:await queryChatMembers(env,chatId)});
 }
 async function addChatMember(request, env, chatId) {
-  const user=await authenticatedD1User(request,env); const membership=await ensureChatAccess(env,chatId,user.id);
-  if (!canManageChat(membership.role)) throw new ApiError(403,"Недостаточно прав.","MEMBER_ADD_DENIED");
-  const body=await readJson(request); const targetId=clean(body.user_id); const targetUsername=clean(body.username).toLowerCase();
-  const target=targetId?await env.DB.prepare(`SELECT id FROM users WHERE id=?1 AND status='active' LIMIT 1`).bind(targetId).first():await env.DB.prepare(`SELECT id FROM users WHERE username_normalized=?1 AND status='active' LIMIT 1`).bind(targetUsername).first();
-  if (!target) throw new ApiError(404,"Пользователь не найден.","USER_NOT_FOUND");
-  const role=membership.type==='channel'?'subscriber':'member'; const now=new Date().toISOString();
+  const user = await authenticatedD1User(request, env);
+  const membership = await ensureChatAccess(env, chatId, user.id);
+  if (!canManageChat(membership.role)) {
+    throw new ApiError(403, "Добавлять участников могут владелец и администратор.", "MEMBER_ADD_DENIED");
+  }
+  if (membership.type === 'private') {
+    throw new ApiError(400, "В личный диалог нельзя добавлять других пользователей. Создайте группу.", "PRIVATE_MEMBER_ADD_DENIED");
+  }
+
+  const body = await readJson(request);
+  const targetId = clean(body.user_id);
+  const targetUsername = clean(body.username).normalize('NFKC').toLowerCase().replace(/^@+/, '');
+  if (!targetId && !targetUsername) {
+    throw new ApiError(400, "Выберите пользователя.", "MEMBER_TARGET_REQUIRED");
+  }
+
+  const target = targetId
+    ? await env.DB.prepare(`SELECT id, username, display_name FROM users WHERE id = ?1 AND status = 'active' LIMIT 1`).bind(targetId).first()
+    : await env.DB.prepare(`SELECT id, username, display_name FROM users WHERE username_normalized = ?1 AND status = 'active' LIMIT 1`).bind(targetUsername).first();
+  if (!target) throw new ApiError(404, "Пользователь не найден.", "USER_NOT_FOUND");
+  if (target.id === user.id) throw new ApiError(409, "Вы уже состоите в этом чате.", "MEMBER_ALREADY_JOINED");
+
+  const blocked = await env.DB.prepare(`
+    SELECT 1 AS blocked
+    FROM wavero_blocks_v1
+    WHERE (blocker_user_id = ?1 AND blocked_user_id = ?2)
+       OR (blocker_user_id = ?2 AND blocked_user_id = ?1)
+    LIMIT 1
+  `).bind(user.id, target.id).first();
+  if (blocked) throw new ApiError(409, "Сначала снимите блокировку между пользователями.", "MEMBER_BLOCKED");
+
+  const existing = await env.DB.prepare(`
+    SELECT left_at, is_banned
+    FROM chat_members
+    WHERE chat_id = ?1 AND user_id = ?2
+    LIMIT 1
+  `).bind(chatId, target.id).first();
+  if (existing && !existing.left_at && Number(existing.is_banned || 0) === 0) {
+    throw new ApiError(409, "Этот пользователь уже состоит в чате.", "MEMBER_ALREADY_JOINED");
+  }
+
+  const role = membership.type === 'channel' ? 'subscriber' : 'member';
+  const now = new Date().toISOString();
   await env.DB.batch([
-    env.DB.prepare(`UPDATE chat_members SET role=?1,left_at=NULL,is_banned=0,joined_at=?2 WHERE chat_id=?3 AND user_id=?4`).bind(role,now,chatId,target.id),
-    env.DB.prepare(`INSERT OR IGNORE INTO chat_members(chat_id,user_id,role,joined_at) VALUES(?1,?2,?3,?4)`).bind(chatId,target.id,role,now),
+    env.DB.prepare(`
+      UPDATE chat_members
+      SET role = ?1, left_at = NULL, is_banned = 0, joined_at = ?2
+      WHERE chat_id = ?3 AND user_id = ?4
+    `).bind(role, now, chatId, target.id),
+    env.DB.prepare(`
+      INSERT OR IGNORE INTO chat_members (chat_id, user_id, role, joined_at)
+      VALUES (?1, ?2, ?3, ?4)
+    `).bind(chatId, target.id, role, now),
   ]);
-  return json({ok:true,added:true});
+  return json({ ok: true, added: true, member: { ...target, role } });
 }
 async function updateChatMember(request, env, chatId, targetId) {
   const user=await authenticatedD1User(request,env); const membership=await ensureChatAccess(env,chatId,user.id);
