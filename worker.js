@@ -90,6 +90,31 @@ CREATE TABLE IF NOT EXISTS wavero_admin_actions (
   details TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS wavero_oauth_identities (
+  provider TEXT NOT NULL,
+  provider_user_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  provider_login TEXT NOT NULL DEFAULT '',
+  provider_email TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (provider, provider_user_id)
+);
+CREATE TABLE IF NOT EXISTS wavero_access_sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  revoked_at TEXT
+);
+CREATE TABLE IF NOT EXISTS wavero_oauth_tickets (
+  ticket_hash TEXT PRIMARY KEY,
+  access_token TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_wavero_chat_state_user ON wavero_chat_state(user_id, archived, updated_at);
 CREATE INDEX IF NOT EXISTS idx_wavero_reactions_message ON wavero_message_reactions(message_id);
 CREATE INDEX IF NOT EXISTS idx_wavero_replies_target ON wavero_message_replies(reply_to_message_id);
@@ -97,19 +122,48 @@ CREATE INDEX IF NOT EXISTS idx_wavero_pins_chat ON wavero_pinned_messages(chat_i
 CREATE INDEX IF NOT EXISTS idx_wavero_invites_chat ON wavero_invites(chat_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_wavero_blocks_blocked ON wavero_blocks_v1(blocked_user_id);
 CREATE INDEX IF NOT EXISTS idx_wavero_reports_status ON wavero_reports_v1(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_wavero_oauth_identity_user ON wavero_oauth_identities(user_id, provider);
+CREATE INDEX IF NOT EXISTS idx_wavero_access_sessions_user ON wavero_access_sessions(user_id, expires_at);
+CREATE INDEX IF NOT EXISTS idx_wavero_oauth_tickets_expiry ON wavero_oauth_tickets(expires_at, used_at);
 INSERT INTO wavero_meta(key, value, updated_at)
-VALUES ('schema_version', '1.0.0', CURRENT_TIMESTAMP)
+VALUES ('schema_version', '1.0.3', CURRENT_TIMESTAMP)
 ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;`;
 let schemaPromise = null;
 
+function schemaStatements() {
+  return EXTENSION_SCHEMA
+    .split(/;\s*(?:\n|$)/)
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+}
+
 async function ensureSchema(env) {
   if (!env.DB) throw new ApiError(500, "База данных не подключена.", "DB_NOT_CONFIGURED");
+
   if (!schemaPromise) {
-    schemaPromise = env.DB.exec(EXTENSION_SCHEMA).catch((error) => {
+    schemaPromise = (async () => {
+      const statements = schemaStatements();
+      for (let index = 0; index < statements.length; index += 1) {
+        const statement = statements[index];
+        try {
+          await env.DB.prepare(statement).run();
+        } catch (error) {
+          console.error("WAVERO_SCHEMA_ERROR", {
+            step: index + 1,
+            statement: statement.slice(0, 180),
+            message: error?.message,
+            stack: error?.stack,
+          });
+          throw new ApiError(500, "Не удалось подготовить структуру данных Wavero.", "SCHEMA_INIT_FAILED");
+        }
+      }
+      return true;
+    })().catch((error) => {
       schemaPromise = null;
       throw error;
     });
   }
+
   return schemaPromise;
 }
 
@@ -123,6 +177,11 @@ export default {
     try {
       const url = new URL(request.url);
 
+      if (request.method === "GET" && url.pathname === "/api/auth/yandex/start") return startYandexAuth(request, env);
+      if (request.method === "GET" && url.pathname === "/api/auth/yandex/callback") return yandexAuthCallback(request, env);
+      if (request.method === "POST" && url.pathname === "/api/auth/yandex/complete") return completeYandexAuth(request, env);
+      if (request.method === "POST" && url.pathname === "/api/auth/logout") return logoutSession(request, env);
+
       if (request.method === "GET" && url.pathname === "/health") {
         let schemaReady = false;
         let schemaVersion = null;
@@ -131,7 +190,7 @@ export default {
             await ensureSchema(env);
             const meta = await env.DB.prepare("SELECT value FROM wavero_meta WHERE key='schema_version' LIMIT 1").first();
             schemaVersion = meta?.value || null;
-            schemaReady = schemaVersion === "1.0.0";
+            schemaReady = schemaVersion === "1.0.3";
           } catch (error) {
             console.error("WAVERO_HEALTH_SCHEMA", { requestId, message: error?.message, stack: error?.stack });
           }
@@ -139,17 +198,18 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "1.0.0-core",
+          version: "1.0.3-yandex",
           schemaVersion,
           schemaReady,
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
+          yandexConfigured: Boolean(env.YANDEX_CLIENT_ID && env.YANDEX_CLIENT_SECRET),
           databaseConfigured: Boolean(env.DB),
         });
       }
 
       const isApi = url.pathname.startsWith("/api/") || url.pathname.startsWith("/mobile/") || url.pathname === "/directory";
-      if (isApi) await ensureSchema(env);
 
+      // Авторизация не должна зависеть от миграции дополнительных функций.
       if (request.method === "POST" && url.pathname === "/api/auth/register") return register(request, env);
       if (request.method === "POST" && url.pathname === "/api/auth/login") return login(request, env);
       if (request.method === "POST" && url.pathname === "/api/auth/refresh") return refreshSession(request, env);
@@ -157,8 +217,12 @@ export default {
       if (request.method === "POST" && url.pathname === "/api/auth/reset-password") return resetPassword(request, env);
       if (request.method === "POST" && url.pathname === "/api/auth/sync") return syncAuthenticatedUser(request, env);
 
+      // Вход в приложение и базовый список чатов имеют безопасный legacy-fallback.
       if (request.method === "GET" && url.pathname === "/api/bootstrap") return bootstrap(request, env);
       if (request.method === "GET" && url.pathname === "/api/me/chats") return listMyChats(request, env);
+
+      // Дополнительная схема создаётся только после успешной авторизации.
+      if (isApi) await ensureSchema(env);
       if (request.method === "GET" && url.pathname === "/api/me/profile") return getMyProfile(request, env);
       if (request.method === "PATCH" && url.pathname === "/api/me/profile") return updateMyProfile(request, env);
       if (request.method === "GET" && url.pathname === "/api/me/blocks") return listBlocks(request, env);
@@ -223,7 +287,7 @@ export default {
       if (adminReportMatch && request.method === "PATCH") return adminUpdateReport(request, env, decodeURIComponent(adminReportMatch[1]));
 
       const isApiPath = isApi || url.pathname === "/health";
-      if (request.method === "GET" && !isApiPath) return html(renderIndexHtml(indexHtml, env));
+      if (request.method === "GET" && !isApiPath) return html(indexHtml);
       return json({ ok: false, code: "ROUTE_NOT_FOUND", error: "Маршрут не найден." }, 404);
     } catch (error) {
       const code = error instanceof ApiError ? error.code : "INTERNAL_ERROR";
@@ -240,6 +304,393 @@ export default {
     }
   },
 };
+
+
+const YANDEX_CALLBACK_FALLBACK = "https://wavero-api.zachemposmotrel.workers.dev/api/auth/yandex/callback";
+const YANDEX_STATE_COOKIE = "wvr_yandex_state";
+const OAUTH_SESSION_SECONDS = 30 * 24 * 60 * 60;
+const OAUTH_TICKET_SECONDS = 180;
+
+async function startYandexAuth(request, env) {
+  if (!env.YANDEX_CLIENT_ID || !env.YANDEX_CLIENT_SECRET) {
+    return redirectToApp(request, { yandex_error: "not_configured" });
+  }
+
+  const state = randomToken(32);
+  const redirectUri = yandexRedirectUri(env);
+  const authorize = new URL("https://oauth.yandex.ru/authorize");
+  authorize.searchParams.set("response_type", "code");
+  authorize.searchParams.set("client_id", env.YANDEX_CLIENT_ID);
+  authorize.searchParams.set("redirect_uri", redirectUri);
+  authorize.searchParams.set("state", state);
+  authorize.searchParams.set("force_confirm", "yes");
+
+  return redirectResponse(authorize.toString(), {
+    "Set-Cookie": `${YANDEX_STATE_COOKIE}=${state}; Max-Age=600; Path=/api/auth/yandex/callback; HttpOnly; Secure; SameSite=Lax`,
+  });
+}
+
+async function yandexAuthCallback(request, env) {
+  const url = new URL(request.url);
+  const clearCookie = `${YANDEX_STATE_COOKIE}=; Max-Age=0; Path=/api/auth/yandex/callback; HttpOnly; Secure; SameSite=Lax`;
+
+  try {
+    if (!env.YANDEX_CLIENT_ID || !env.YANDEX_CLIENT_SECRET) {
+      return redirectToApp(request, { yandex_error: "not_configured" }, { "Set-Cookie": clearCookie });
+    }
+
+    const oauthError = clean(url.searchParams.get("error"));
+    if (oauthError) {
+      const mapped = oauthError === "access_denied" ? "access_denied" : "oauth_rejected";
+      return redirectToApp(request, { yandex_error: mapped }, { "Set-Cookie": clearCookie });
+    }
+
+    const code = clean(url.searchParams.get("code"));
+    const returnedState = clean(url.searchParams.get("state"));
+    const expectedState = clean(readCookie(request, YANDEX_STATE_COOKIE));
+    if (!code || !returnedState || !expectedState || returnedState !== expectedState) {
+      return redirectToApp(request, { yandex_error: "state_mismatch" }, { "Set-Cookie": clearCookie });
+    }
+
+    await ensureSchema(env);
+    const oauthToken = await exchangeYandexCode(env, code);
+    const profile = await fetchYandexProfile(env, oauthToken);
+    const user = await findOrCreateYandexUser(env, profile);
+    const issued = await issueWaveroAccessSession(env, user.id, "yandex");
+    const ticket = randomToken(32);
+    const ticketHash = await sha256Hex(ticket);
+    const now = new Date();
+    const ticketExpiresAt = new Date(now.getTime() + OAUTH_TICKET_SECONDS * 1000).toISOString();
+
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM wavero_oauth_tickets WHERE expires_at <= ?1 OR used_at IS NOT NULL`).bind(now.toISOString()),
+      env.DB.prepare(`
+        INSERT INTO wavero_oauth_tickets (ticket_hash, access_token, expires_at, used_at)
+        VALUES (?1, ?2, ?3, NULL)
+      `).bind(ticketHash, issued.token, ticketExpiresAt),
+    ]);
+
+    return redirectToApp(request, { yandex_ticket: ticket }, { "Set-Cookie": clearCookie });
+  } catch (error) {
+    console.error("YANDEX_AUTH_ERROR", {
+      code: error instanceof ApiError ? error.code : "YANDEX_INTERNAL",
+      message: error?.message,
+      stack: error?.stack,
+    });
+    const errorCode = error instanceof ApiError ? error.code : "YANDEX_INTERNAL";
+    return redirectToApp(request, { yandex_error: errorCode.toLowerCase() }, { "Set-Cookie": clearCookie });
+  }
+}
+
+async function completeYandexAuth(request, env) {
+  await ensureSchema(env);
+  const body = await readJson(request);
+  const ticket = clean(body.ticket);
+  if (!ticket) throw new ApiError(400, "Не найден код завершения входа.", "YANDEX_TICKET_MISSING");
+
+  const ticketHash = await sha256Hex(ticket);
+  const now = new Date().toISOString();
+  const row = await env.DB.prepare(`
+    SELECT access_token, expires_at, used_at
+    FROM wavero_oauth_tickets
+    WHERE ticket_hash = ?1
+    LIMIT 1
+  `).bind(ticketHash).first();
+
+  if (!row || row.used_at || String(row.expires_at) <= now) {
+    throw new ApiError(401, "Ссылка входа устарела. Повторите вход через Яндекс.", "YANDEX_TICKET_EXPIRED");
+  }
+
+  const consumed = await env.DB.prepare(`
+    UPDATE wavero_oauth_tickets
+    SET used_at = ?2
+    WHERE ticket_hash = ?1 AND used_at IS NULL AND expires_at > ?2
+  `).bind(ticketHash, now).run();
+  if (!Number(consumed?.meta?.changes || 0)) {
+    throw new ApiError(401, "Ссылка входа уже использована.", "YANDEX_TICKET_USED");
+  }
+
+  const sessionHash = await sha256Hex(row.access_token);
+  const session = await env.DB.prepare(`
+    SELECT expires_at
+    FROM wavero_access_sessions
+    WHERE token_hash = ?1 AND revoked_at IS NULL AND expires_at > ?2
+    LIMIT 1
+  `).bind(sessionHash, now).first();
+  if (!session) throw new ApiError(401, "Сессия входа недоступна.", "YANDEX_SESSION_MISSING");
+
+  const expiresIn = Math.max(1, Math.floor((new Date(session.expires_at).getTime() - Date.now()) / 1000));
+  return json({
+    ok: true,
+    id_token: row.access_token,
+    refresh_token: null,
+    expires_in: expiresIn,
+    auth_provider: "yandex",
+  });
+}
+
+async function logoutSession(request, env) {
+  const token = bearerToken(request);
+  if (token?.startsWith("wvr_")) {
+    await ensureSchema(env);
+    const hash = await sha256Hex(token);
+    await env.DB.prepare(`
+      UPDATE wavero_access_sessions
+      SET revoked_at = COALESCE(revoked_at, ?2)
+      WHERE token_hash = ?1
+    `).bind(hash, new Date().toISOString()).run();
+  }
+  return json({ ok: true });
+}
+
+async function exchangeYandexCode(env, code) {
+  const response = await fetch("https://oauth.yandex.ru/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Authorization": `Basic ${btoa(`${env.YANDEX_CLIENT_ID}:${env.YANDEX_CLIENT_SECRET}`)}`,
+      "Accept": "application/json",
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    console.error("YANDEX_TOKEN_EXCHANGE_ERROR", { status: response.status, error: data?.error, description: data?.error_description });
+    throw new ApiError(401, "Яндекс не подтвердил вход. Повторите попытку.", "YANDEX_TOKEN_EXCHANGE");
+  }
+  return data.access_token;
+}
+
+async function fetchYandexProfile(env, oauthToken) {
+  const response = await fetch("https://login.yandex.ru/info?format=json", {
+    headers: {
+      "Authorization": `OAuth ${oauthToken}`,
+      "Accept": "application/json",
+    },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.id) {
+    console.error("YANDEX_PROFILE_ERROR", { status: response.status, error: data?.error });
+    throw new ApiError(401, "Не удалось получить профиль Яндекс ID.", "YANDEX_PROFILE_FAILED");
+  }
+  if (data.client_id && String(data.client_id) !== String(env.YANDEX_CLIENT_ID)) {
+    throw new ApiError(401, "Профиль получен для другого приложения.", "YANDEX_CLIENT_MISMATCH");
+  }
+  return data;
+}
+
+async function findOrCreateYandexUser(env, profile) {
+  const now = new Date().toISOString();
+  const providerUserId = clean(profile.psuid || String(profile.id));
+  const providerLogin = clean(profile.login).toLowerCase();
+  const providerEmail = clean(profile.default_email || profile.emails?.[0]).toLowerCase();
+  const email = providerEmail || `yandex-${String(profile.id).replace(/[^0-9a-z_-]/gi, "")}@oauth.wavero.local`;
+  const displayName = clean(profile.real_name || profile.display_name || [profile.first_name, profile.last_name].filter(Boolean).join(" ") || providerLogin || "Пользователь Яндекса").slice(0, 50);
+  const avatarUrl = !profile.is_avatar_empty && clean(profile.default_avatar_id)
+    ? `https://avatars.yandex.net/get-yapic/${encodeURIComponent(profile.default_avatar_id)}/islands-200`
+    : "";
+
+  if (!providerUserId) throw new ApiError(401, "Яндекс не вернул идентификатор пользователя.", "YANDEX_ID_MISSING");
+
+  let user = await env.DB.prepare(`
+    SELECT u.id, u.firebase_uid, u.email, u.username, u.display_name, u.role, u.status
+    FROM wavero_oauth_identities i
+    JOIN users u ON u.id = i.user_id
+    WHERE i.provider = 'yandex' AND i.provider_user_id = ?1
+    LIMIT 1
+  `).bind(providerUserId).first();
+
+  if (!user && providerEmail) {
+    user = await env.DB.prepare(`
+      SELECT id, firebase_uid, email, username, display_name, role, status
+      FROM users
+      WHERE email_normalized = ?1
+      LIMIT 1
+    `).bind(providerEmail).first();
+  }
+
+  if (user) {
+    if (user.status === "suspended" || user.status === "deleted") {
+      throw new ApiError(403, "Аккаунт Wavero заблокирован.", "ACCOUNT_UNAVAILABLE");
+    }
+    await env.DB.batch([
+      env.DB.prepare(`
+        INSERT INTO wavero_oauth_identities (
+          provider, provider_user_id, user_id, provider_login, provider_email, created_at, updated_at
+        ) VALUES ('yandex', ?1, ?2, ?3, ?4, ?5, ?5)
+        ON CONFLICT(provider, provider_user_id) DO UPDATE SET
+          user_id = excluded.user_id,
+          provider_login = excluded.provider_login,
+          provider_email = excluded.provider_email,
+          updated_at = excluded.updated_at
+      `).bind(providerUserId, user.id, providerLogin, providerEmail, now),
+      env.DB.prepare(`
+        UPDATE users
+        SET email_verified_at = COALESCE(email_verified_at, ?2),
+            last_seen_at = ?2,
+            updated_at = ?2,
+            status = CASE WHEN status = 'pending_verification' THEN 'active' ELSE status END
+        WHERE id = ?1
+      `).bind(user.id, now),
+      env.DB.prepare(`
+        INSERT INTO wavero_profiles (user_id, bio, avatar_url, theme, sound_enabled, notifications_enabled, updated_at)
+        VALUES (?1, '', ?2, 'dark', 1, 1, ?3)
+        ON CONFLICT(user_id) DO UPDATE SET
+          avatar_url = CASE WHEN wavero_profiles.avatar_url = '' THEN excluded.avatar_url ELSE wavero_profiles.avatar_url END,
+          updated_at = excluded.updated_at
+      `).bind(user.id, avatarUrl, now),
+    ]);
+    return { ...user, status: user.status === "pending_verification" ? "active" : user.status };
+  }
+
+  const userId = crypto.randomUUID();
+  const username = await uniqueYandexUsername(env, providerLogin, String(profile.id));
+  const firebaseUid = `yandex:${providerUserId}`;
+
+  await env.DB.batch([
+    env.DB.prepare(`
+      INSERT INTO users (
+        id, firebase_uid, email, email_normalized, email_verified_at,
+        username, username_normalized, display_name, password_hash,
+        role, status, last_seen_at, created_at, updated_at
+      ) VALUES (
+        ?1, ?2, ?3, ?3, ?4,
+        ?5, ?5, ?6, 'oauth_yandex',
+        'user', 'active', ?4, ?4, ?4
+      )
+    `).bind(userId, firebaseUid, email, now, username, displayName),
+    env.DB.prepare(`
+      INSERT INTO wavero_oauth_identities (
+        provider, provider_user_id, user_id, provider_login, provider_email, created_at, updated_at
+      ) VALUES ('yandex', ?1, ?2, ?3, ?4, ?5, ?5)
+    `).bind(providerUserId, userId, providerLogin, providerEmail, now),
+    env.DB.prepare(`
+      INSERT INTO wavero_profiles (user_id, bio, avatar_url, theme, sound_enabled, notifications_enabled, updated_at)
+      VALUES (?1, '', ?2, 'dark', 1, 1, ?3)
+      ON CONFLICT(user_id) DO NOTHING
+    `).bind(userId, avatarUrl, now),
+    env.DB.prepare(`
+      INSERT OR IGNORE INTO chat_members (chat_id, user_id, role, joined_at)
+      VALUES ('system-channel-wavero', ?1, 'subscriber', ?2)
+    `).bind(userId, now),
+  ]);
+
+  return {
+    id: userId,
+    firebase_uid: firebaseUid,
+    email,
+    username,
+    display_name: displayName,
+    role: "user",
+    status: "active",
+  };
+}
+
+async function uniqueYandexUsername(env, login, providerId) {
+  let base = clean(login)
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 18);
+  if (base.length < 4) base = `ya_${String(providerId).replace(/[^a-z0-9]/gi, "").slice(-10).toLowerCase()}`;
+  if (base.length < 4) base = `ya_${randomToken(6).toLowerCase()}`;
+  const reserved = new Set(["admin", "administrator", "moderator", "support", "system", "security", "wavero"]);
+  if (reserved.has(base)) base = `ya_${base}`.slice(0, 18);
+
+  for (let index = 0; index < 40; index += 1) {
+    const suffix = index === 0 ? "" : `_${index + 1}`;
+    const candidate = `${base.slice(0, 24 - suffix.length)}${suffix}`;
+    const exists = await env.DB.prepare(`
+      SELECT 1 AS found FROM users WHERE username_normalized = ?1 LIMIT 1
+    `).bind(candidate).first();
+    if (!exists) return candidate;
+  }
+  return `ya_${randomToken(12).toLowerCase()}`.replace(/[^a-z0-9_]/g, "_").slice(0, 24);
+}
+
+async function issueWaveroAccessSession(env, userId, provider) {
+  const token = `wvr_${randomToken(48)}`;
+  const tokenHash = await sha256Hex(token);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + OAUTH_SESSION_SECONDS * 1000).toISOString();
+  await env.DB.prepare(`
+    INSERT INTO wavero_access_sessions (
+      token_hash, user_id, provider, created_at, expires_at, last_seen_at, revoked_at
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?4, NULL)
+  `).bind(tokenHash, userId, provider, now.toISOString(), expiresAt).run();
+  return { token, expiresAt };
+}
+
+async function authenticatedOauthUser(env, token) {
+  await ensureSchema(env);
+  const tokenHash = await sha256Hex(token);
+  const now = new Date().toISOString();
+  const user = await env.DB.prepare(`
+    SELECT u.id, u.firebase_uid, u.email, u.username, u.display_name, u.role, u.status
+    FROM wavero_access_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.token_hash = ?1
+      AND s.revoked_at IS NULL
+      AND s.expires_at > ?2
+      AND COALESCE(u.status, 'active') = 'active'
+    LIMIT 1
+  `).bind(tokenHash, now).first();
+  if (!user) throw new ApiError(401, "Сессия истекла. Войдите снова.", "SESSION_EXPIRED");
+  return user;
+}
+
+function yandexRedirectUri(env) {
+  return clean(env.YANDEX_REDIRECT_URI) || YANDEX_CALLBACK_FALLBACK;
+}
+
+function readCookie(request, name) {
+  const cookie = request.headers.get("Cookie") || "";
+  for (const part of cookie.split(";")) {
+    const index = part.indexOf("=");
+    if (index < 0) continue;
+    const key = part.slice(0, index).trim();
+    if (key === name) return decodeURIComponent(part.slice(index + 1).trim());
+  }
+  return "";
+}
+
+function redirectToApp(request, params = {}, extraHeaders = {}) {
+  const target = new URL("/", request.url);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") target.searchParams.set(key, String(value));
+  }
+  return redirectResponse(target.toString(), extraHeaders);
+}
+
+function redirectResponse(location, extraHeaders = {}) {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      "Location": location,
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff",
+      ...extraHeaders,
+    },
+  });
+}
+
+function randomToken(byteLength = 32) {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 async function register(request, env) {
   requireFirebase(env);
@@ -565,7 +1016,9 @@ async function authenticatedD1User(request, env) {
 
 async function authenticatedD1UserByToken(env, idToken) {
   if (!idToken) throw new ApiError(401, "Требуется авторизация.");
+  if (idToken.startsWith("wvr_")) return authenticatedOauthUser(env, idToken);
 
+  requireFirebase(env);
   const account = await lookupFirebaseUser(env, idToken);
   if (!account.emailVerified) throw new ApiError(403, "Сначала подтвердите email.");
 
@@ -829,16 +1282,74 @@ async function createOrFindDirectChat(env, currentUser, target) {
 
 async function bootstrap(request, env) {
   const user = await authenticatedD1User(request, env);
-  const [profile, chats] = await Promise.all([
-    loadProfile(env, user),
-    queryMyChats(env, user),
-  ]);
-  return json({ ok: true, user, profile, settings: profile, chats, is_admin: isGlobalAdmin(user) });
+  try {
+    await ensureSchema(env);
+    const [profile, chats] = await Promise.all([
+      loadProfile(env, user),
+      queryMyChats(env, user),
+    ]);
+    return json({ ok: true, user, profile, settings: profile, chats, is_admin: isGlobalAdmin(user), extension_schema_ready: true });
+  } catch (error) {
+    console.error("WAVERO_BOOTSTRAP_FALLBACK", { message: error?.message, stack: error?.stack });
+    const profile = { bio: "", avatar_url: "", theme: "dark", sound_enabled: 1, notifications_enabled: 1, updated_at: null };
+    const chats = await queryMyChatsLegacy(env, user);
+    return json({ ok: true, user, profile, settings: profile, chats, is_admin: isGlobalAdmin(user), extension_schema_ready: false });
+  }
 }
 
 async function listMyChats(request, env) {
   const user = await authenticatedD1User(request, env);
-  return json({ ok: true, user, chats: await queryMyChats(env, user) });
+  try {
+    await ensureSchema(env);
+    return json({ ok: true, user, chats: await queryMyChats(env, user), extension_schema_ready: true });
+  } catch (error) {
+    console.error("WAVERO_CHATS_FALLBACK", { message: error?.message, stack: error?.stack });
+    return json({ ok: true, user, chats: await queryMyChatsLegacy(env, user), extension_schema_ready: false });
+  }
+}
+
+async function queryMyChatsLegacy(env, user) {
+  const result = await env.DB.prepare(`
+    SELECT
+      c.id,
+      c.type,
+      CASE WHEN c.type = 'private' THEN (
+        SELECT other_user.display_name
+        FROM chat_members other_member
+        INNER JOIN users other_user ON other_user.id = other_member.user_id
+        WHERE other_member.chat_id = c.id AND other_member.user_id <> ?1 AND other_member.left_at IS NULL
+        LIMIT 1
+      ) ELSE c.title END AS title,
+      CASE WHEN c.type = 'private' THEN (
+        SELECT other_user.username
+        FROM chat_members other_member
+        INNER JOIN users other_user ON other_user.id = other_member.user_id
+        WHERE other_member.chat_id = c.id AND other_member.user_id <> ?1 AND other_member.left_at IS NULL
+        LIMIT 1
+      ) ELSE c.username END AS username,
+      CASE WHEN c.type = 'private' THEN (
+        SELECT other_user.id
+        FROM chat_members other_member
+        INNER JOIN users other_user ON other_user.id = other_member.user_id
+        WHERE other_member.chat_id = c.id AND other_member.user_id <> ?1 AND other_member.left_at IS NULL
+        LIMIT 1
+      ) ELSE NULL END AS peer_user_id,
+      c.description,
+      c.is_public,
+      c.is_system,
+      cm.role,
+      0 AS archived,
+      0 AS muted,
+      (SELECT m.text FROM messages m WHERE m.chat_id=c.id AND m.deleted_at IS NULL AND m.deleted_for_everyone=0 ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+      (SELECT m.created_at FROM messages m WHERE m.chat_id=c.id AND m.deleted_at IS NULL AND m.deleted_for_everyone=0 ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+      0 AS unread_count,
+      (SELECT COUNT(*) FROM chat_members members WHERE members.chat_id=c.id AND members.left_at IS NULL AND members.is_banned=0) AS member_count
+    FROM chat_members cm
+    INNER JOIN chats c ON c.id=cm.chat_id
+    WHERE cm.user_id=?1 AND cm.left_at IS NULL AND cm.is_banned=0 AND c.deleted_at IS NULL
+    ORDER BY COALESCE(last_message_at,c.updated_at,c.created_at) DESC
+  `).bind(user.id).all();
+  return result.results || [];
 }
 
 async function queryMyChats(env, user) {
@@ -1461,22 +1972,6 @@ class ApiError extends Error {
     this.status = status;
     this.code = code;
   }
-}
-
-function renderIndexHtml(template, env) {
-  const apiKey = String(env.FIREBASE_API_KEY || "").trim();
-  const projectId = String(env.FIREBASE_PROJECT_ID || "").trim();
-
-  if (!apiKey || !projectId) {
-    throw new ApiError(500, "Firebase не настроен на сервере.");
-  }
-
-  const authDomain = `${projectId}.firebaseapp.com`;
-
-  return template
-    .replace("__FIREBASE_API_KEY_JSON__", JSON.stringify(apiKey))
-    .replace("__FIREBASE_AUTH_DOMAIN_JSON__", JSON.stringify(authDomain))
-    .replace("__FIREBASE_PROJECT_ID_JSON__", JSON.stringify(projectId));
 }
 
 function html(content, status = 200) {

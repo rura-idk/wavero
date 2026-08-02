@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
   <meta name="color-scheme" content="dark light">
   <meta name="theme-color" content="#050505">
-  <meta name="wavero-build" content="1.0.0-core">
+  <meta name="wavero-build" content="1.0.3-yandex">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>Wavero</title>
   <style>
@@ -19,21 +19,21 @@
     body.light{--bg:#f3f3f0;--panel:#fff;--panel-2:#f7f7f4;--panel-3:#ecece8;--line:#deded8;--text:#111;--muted:#74746f;--soft:#333;--accent:#111;--accent-text:#fff;--shadow:0 24px 70px rgba(0,0,0,.13)}
     *{box-sizing:border-box}
     html,body{width:100%;height:100%;margin:0;-webkit-text-size-adjust:100%}
-    body{background:var(--bg);color:var(--text);overflow:hidden}
+    body{background:var(--bg);color:var(--text);overflow:hidden;max-width:100vw}
     button,input,textarea,select{font:inherit}
     button{touch-action:manipulation}
     .hidden{display:none!important}
     .screen{position:fixed;inset:0;width:100%;height:var(--app-height);min-height:0}
-    .auth-screen{display:grid;grid-template-columns:minmax(320px,1.25fr) minmax(360px,520px);background:var(--bg);overflow:auto}
-    .auth-hero{position:relative;min-height:100%;padding:clamp(32px,6vw,84px);display:flex;flex-direction:column;justify-content:space-between;border-right:1px solid var(--line);overflow:hidden}
+    .auth-screen{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(360px,520px);background:var(--bg);overflow:auto;overflow-x:hidden}
+    .auth-hero{position:relative;min-width:0;min-height:100%;padding:clamp(32px,5vw,76px);display:flex;flex-direction:column;justify-content:space-between;border-right:1px solid var(--line);overflow:hidden}
     .auth-hero:after{content:"";position:absolute;right:-180px;bottom:-220px;width:540px;height:540px;border:1px solid var(--line);border-radius:50%;box-shadow:0 0 0 76px var(--bg),0 0 0 77px var(--line),0 0 0 152px var(--bg)}
     .brand{font-size:26px;font-weight:800;letter-spacing:-.05em;position:relative;z-index:1}
-    .hero-copy{position:relative;z-index:1;max-width:760px}
+    .hero-copy{position:relative;z-index:1;max-width:760px;min-width:0}
     .eyebrow{text-transform:uppercase;letter-spacing:.18em;color:var(--muted);font-size:11px;margin-bottom:18px}
-    h1{font-size:clamp(56px,9vw,126px);line-height:.86;letter-spacing:-.08em;margin:0;font-weight:650}
+    h1{font-size:clamp(50px,7vw,108px);line-height:.88;letter-spacing:-.075em;margin:0;font-weight:650;max-width:100%;overflow-wrap:normal}
     .hero-copy p{color:var(--muted);font-size:17px;line-height:1.65;max-width:540px;margin:30px 0 0}
     .auth-foot{position:relative;z-index:1;color:var(--muted);font-size:12px}
-    .auth-panel{background:var(--panel);display:flex;align-items:center;padding:clamp(24px,5vw,64px);min-height:100%}
+    .auth-panel{background:var(--panel);display:flex;align-items:center;padding:clamp(24px,5vw,64px);min-height:100%;min-width:0;overflow:auto}
     .auth-card{width:100%;max-width:420px;margin:auto}
     .tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);margin-bottom:30px}
     .tab{border:0;background:none;color:var(--muted);padding:0 0 14px;cursor:pointer;font-weight:700;position:relative}
@@ -50,13 +50,12 @@
     .danger-btn{border:1px solid color-mix(in srgb,var(--danger) 55%,var(--line));background:transparent;color:var(--danger);padding:12px 15px;font-weight:700}
     .primary:active,.secondary:active,.danger-btn:active,.icon-btn:active,.chip-btn:active{transform:scale(.97)}
     button:disabled{opacity:.45;cursor:wait}
-    .google-btn{display:flex;align-items:center;justify-content:center;gap:11px;width:100%;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:13px 16px;border-radius:12px;font-weight:750;cursor:pointer}
-    .google-mark{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#fff;color:#4285f4;font-weight:900;font-family:Arial}
-    .divider{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:11px;margin:4px 0}
-    .divider:before,.divider:after{content:"";height:1px;background:var(--line);flex:1}
     .link-btn{border:0;background:none;color:var(--muted);padding:0;cursor:pointer;text-align:left;width:max-content}
     .notice{border:1px solid var(--line);background:var(--bg);border-radius:14px;padding:14px 15px;margin-bottom:18px;display:none}
     .notice.show{display:block}.notice.error{border-color:color-mix(in srgb,var(--danger) 60%,var(--line));color:var(--danger)}.notice.ok{color:var(--success)}
+    .yandex-btn{width:100%;min-height:50px;border:1px solid var(--line);background:var(--text);color:var(--bg);border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:800;cursor:pointer;margin-bottom:16px;touch-action:manipulation}
+    .yandex-btn:active{transform:scale(.98)}.yandex-mark{width:26px;height:26px;border-radius:8px;background:#fc3f1d;color:#fff;display:grid;place-items:center;font-weight:900;font-size:16px;line-height:1}
+    .auth-divider{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:11px;margin:0 0 16px}.auth-divider:before,.auth-divider:after{content:"";height:1px;background:var(--line);flex:1}
     .field-error{color:var(--danger);font-size:11px;min-height:0}
     .app{display:grid;grid-template-columns:minmax(280px,350px) minmax(0,1fr);background:var(--bg);overflow:hidden}
     .sidebar,.chat-view{min-height:0;height:100%;overflow:hidden}
@@ -102,11 +101,24 @@
     .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.stat{border:1px solid var(--line);border-radius:14px;padding:13px;background:var(--bg)}.stat b{display:block;font-size:24px}.stat span{font-size:10px;color:var(--muted)}
     .admin-table{display:grid;gap:7px}.admin-row{border:1px solid var(--line);border-radius:14px;padding:11px;background:var(--bg)}.admin-row-head{display:flex;gap:8px;align-items:center}.admin-row-head strong{flex:1}.admin-row small{color:var(--muted)}.admin-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.admin-actions select{width:auto;padding:8px}.admin-actions button{padding:8px 10px}
     .toast-stack{position:fixed;right:14px;bottom:calc(14px + var(--safe-bottom));z-index:100;display:grid;gap:8px;pointer-events:none}.toast{max-width:min(420px,calc(100vw - 28px));padding:12px 14px;border-radius:13px;background:var(--accent);color:var(--accent-text);box-shadow:var(--shadow);font-size:12px;line-height:1.45}.toast.error{background:var(--danger);color:#fff}
+    @media(max-width:1180px){
+      .auth-screen{display:grid;grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr);overflow:auto;overflow-x:hidden}
+      .auth-hero{min-height:0;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:calc(16px + var(--safe-top)) 24px 16px;display:block}
+      .auth-hero:after,.hero-copy,.auth-foot{display:none}
+      .brand{font-size:24px}
+      .auth-panel{min-height:0;align-items:flex-start;padding:28px 20px calc(28px + var(--safe-bottom));overflow:visible}
+      .auth-card{max-width:520px;margin:0 auto}
+    }
     @media(max-width:800px){
-      .auth-screen{grid-template-columns:1fr;overflow:auto}.auth-hero{min-height:34vh;border-right:0;border-bottom:1px solid var(--line);padding:28px 24px}.auth-hero h1{font-size:58px}.hero-copy p{font-size:14px;margin-top:18px}.auth-panel{min-height:66vh;padding:26px 20px calc(26px + var(--safe-bottom))}
       .app{grid-template-columns:1fr}.chat-view{display:none}.app.chat-open .sidebar{display:none}.app.chat-open .chat-view{display:grid}.mobile-back{display:grid}.head-actions .optional-mobile{display:none}
       .messages{padding:14px 10px}.bubble{max-width:90%}.side-head{min-height:62px}.chat-head{min-height:62px}.composer-shell{padding-left:8px;padding-right:8px}.composer textarea{font-size:16px}
       .modal{padding:0;padding-top:var(--safe-top);padding-bottom:var(--safe-bottom);align-items:end}.modal-card{width:100%;max-height:94%;border-radius:22px 22px 0 0;border-bottom:0}.choice-grid{grid-template-columns:1fr}.stat-grid{grid-template-columns:repeat(2,1fr)}
+    }
+    @media(max-width:480px){
+      .auth-hero{padding-left:16px;padding-right:16px}.auth-panel{padding:20px 14px calc(20px + var(--safe-bottom))}.tabs{margin-bottom:22px}.primary{min-height:48px}
+    }
+    @media(max-height:700px){
+      .auth-screen{display:block;overflow:auto}.auth-hero{display:none}.auth-panel{min-height:var(--app-height);padding-top:calc(14px + var(--safe-top));padding-bottom:calc(14px + var(--safe-bottom));align-items:flex-start}.auth-card{margin:0 auto}
     }
     @media(max-height:590px){.side-head,.chat-head{min-height:54px}.chat-head{padding-top:4px}.messages{padding-top:8px;padding-bottom:8px}.composer-shell{padding-top:5px;padding-bottom:calc(5px + var(--safe-bottom))}.composer textarea{min-height:42px}.send{height:42px}.modal-card{max-height:100%}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
@@ -117,14 +129,14 @@
     <div class="auth-hero">
       <div class="brand">Wavero</div>
       <div class="hero-copy"><div class="eyebrow">Личные сообщения · группы · каналы</div><h1>Общение<br>без шума.</h1><p>Быстрый мессенджер с единым аккаунтом, удобным поиском и адаптацией под любой экран.</p></div>
-      <div class="auth-foot">Wavero 1.0 Core</div>
+      <div class="auth-foot">Wavero 1.0.3</div>
     </div>
     <div class="auth-panel">
       <div class="auth-card">
         <div class="tabs"><button id="loginTab" class="tab active">Вход</button><button id="registerTab" class="tab">Регистрация</button></div>
         <div id="authNotice" class="notice"></div>
-        <button id="googleBtn" class="google-btn" type="button"><span class="google-mark">G</span>Продолжить через Google</button>
-        <div class="divider">или</div>
+        <button id="yandexLoginBtn" class="yandex-btn" type="button"><span class="yandex-mark">Я</span><span>Продолжить через Яндекс</span></button>
+        <div class="auth-divider"><span>или</span></div>
         <form id="loginForm" novalidate>
           <label>Почта или username<input id="loginIdentifier" autocomplete="username" placeholder="email или username"></label>
           <label>Пароль<input id="loginPassword" type="password" autocomplete="current-password" placeholder="Пароль"></label>
@@ -158,22 +170,10 @@
 
   <section id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card"><header class="modal-head"><div id="modalTitle" class="modal-title"></div><button id="modalClose" class="icon-btn">×</button></header><div id="modalBody" class="modal-body"></div><footer id="modalFoot" class="modal-foot hidden"></footer></div></section>
   <div id="toastStack" class="toast-stack" aria-live="polite"></div>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-    const firebaseConfig={apiKey:__FIREBASE_API_KEY_JSON__,authDomain:__FIREBASE_AUTH_DOMAIN_JSON__,projectId:__FIREBASE_PROJECT_ID_JSON__};
-    try{
-      const firebaseApp=initializeApp(firebaseConfig);const auth=getAuth(firebaseApp);await setPersistence(auth,browserLocalPersistence);
-      const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:"select_account"});
-      window.waveroGoogleAuth={async signIn(){const result=await signInWithPopup(auth,provider);return{id_token:await result.user.getIdToken(true),refresh_token:result.user.refreshToken||"",display_name:result.user.displayName||"",email:result.user.email||""}},async signOut(){await signOut(auth)}};
-      window.dispatchEvent(new Event("wavero:google-ready"));
-    }catch(error){window.waveroGoogleAuthError=error;window.dispatchEvent(new CustomEvent("wavero:google-error",{detail:error}))}
-  </script>
   <script>
     "use strict";
-    const VERSION="1.0.0-core";const API=location.origin;const $=id=>document.getElementById(id);
-    const state={token:null,refreshToken:null,expiresAt:0,user:null,profile:null,chats:[],activeChat:null,messages:[],poll:null,messageSeq:0,replyTo:null,isAdmin:false};
+    const VERSION="1.0.3-yandex";const API=location.origin;const $=id=>document.getElementById(id);
+    const state={token:null,refreshToken:null,authProvider:null,expiresAt:0,user:null,profile:null,chats:[],activeChat:null,messages:[],poll:null,messageSeq:0,replyTo:null,isAdmin:false};
     function syncViewport(){const h=window.visualViewport?.height||innerHeight||document.documentElement.clientHeight;document.documentElement.style.setProperty("--app-height",`${Math.max(260,Math.round(h))}px`)}
     syncViewport();addEventListener("resize",syncViewport,{passive:true});addEventListener("orientationchange",()=>setTimeout(syncViewport,80),{passive:true});window.visualViewport?.addEventListener("resize",syncViewport,{passive:true});
     function escapeHtml(v){return String(v??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]))}
@@ -183,19 +183,18 @@
     function setNotice(text,type=""){const n=$("authNotice");n.textContent=text;n.className=`notice ${text?"show":""} ${type}`}
     function setBusy(btn,on,label){btn.disabled=on;btn.dataset.label||=label||btn.textContent;btn.textContent=on?"Подождите…":btn.dataset.label}
     async function api(path,{method="GET",body,auth=true,headers={},retry=true}={}){const response=await fetch(`${API}${path}`,{method,headers:{Accept:"application/json",...(body!==undefined?{"Content-Type":"application/json"}:{}),...(auth&&state.token?{Authorization:`Bearer ${state.token}`}:{}) ,...headers},body:body===undefined?undefined:JSON.stringify(body),cache:"no-store"});const data=await response.json().catch(()=>({error:"Сервер вернул некорректный ответ."}));if(response.status===401&&auth&&retry&&state.refreshToken){const ok=await refreshSession();if(ok)return api(path,{method,body,auth,headers,retry:false})}if(!response.ok){const e=new Error(data.error||"Не удалось выполнить запрос.");e.code=data.code;e.requestId=data.request_id;throw e}return data}
-    function saveSession(s){state.token=s.id_token;state.refreshToken=s.refresh_token||state.refreshToken;state.expiresAt=s.expires_at||Date.now()+55*60*1000;localStorage.setItem("wavero_session",JSON.stringify({id_token:state.token,refresh_token:state.refreshToken,expires_at:state.expiresAt}))}
-    function clearSession(){state.token=null;state.refreshToken=null;state.expiresAt=0;localStorage.removeItem("wavero_session")}
+    function saveSession(s){state.token=s.id_token;const hasRefresh=Object.prototype.hasOwnProperty.call(s,"refresh_token");state.refreshToken=hasRefresh?(s.refresh_token||null):state.refreshToken;state.authProvider=s.auth_provider||state.authProvider||(state.refreshToken?"firebase":"yandex");state.expiresAt=s.expires_at||Date.now()+55*60*1000;localStorage.setItem("wavero_session",JSON.stringify({id_token:state.token,refresh_token:state.refreshToken,auth_provider:state.authProvider,expires_at:state.expiresAt}))}
+    function clearSession(){state.token=null;state.refreshToken=null;state.authProvider=null;state.expiresAt=0;localStorage.removeItem("wavero_session")}
     async function refreshSession(){if(!state.refreshToken)return false;try{const data=await api("/api/auth/refresh",{method:"POST",body:{refresh_token:state.refreshToken},auth:false});saveSession({id_token:data.id_token,refresh_token:data.refresh_token,expires_at:Date.now()+Number(data.expires_in||3600)*1000});return true}catch{clearSession();return false}}
     function switchAuth(mode){const login=mode==="login";$("loginForm").classList.toggle("hidden",!login);$("registerForm").classList.toggle("hidden",login);$("loginTab").classList.toggle("active",login);$("registerTab").classList.toggle("active",!login);setNotice("")}
+    $("yandexLoginBtn").onclick=()=>{setNotice("Переходим в Яндекс ID…","ok");location.assign("/api/auth/yandex/start")};
+    function yandexErrorMessage(code){const messages={access_denied:"Вход через Яндекс отменён.",oauth_rejected:"Яндекс отклонил запрос авторизации.",state_mismatch:"Проверка безопасности входа не пройдена. Повторите попытку.",not_configured:"Вход через Яндекс ещё не настроен на сервере.",yandex_token_exchange:"Яндекс не подтвердил вход. Повторите попытку.",yandex_profile_failed:"Не удалось получить профиль Яндекс ID.",yandex_client_mismatch:"Настройки приложения Яндекс не совпадают.",account_unavailable:"Аккаунт Wavero заблокирован.",schema_init_failed:"Сервер не смог подготовить базу авторизации.",yandex_internal:"Внутренняя ошибка входа через Яндекс."};return messages[code]||"Не удалось войти через Яндекс."}
+    async function completeYandexLogin(){const params=new URLSearchParams(location.search);const ticket=params.get("yandex_ticket");const error=params.get("yandex_error");if(!ticket&&!error)return false;history.replaceState({},"",location.pathname);if(error){setNotice(yandexErrorMessage(error),"error");return true}setNotice("Завершаем вход через Яндекс…","ok");try{const auth=await api("/api/auth/yandex/complete",{method:"POST",auth:false,body:{ticket}});saveSession({id_token:auth.id_token,refresh_token:null,auth_provider:"yandex",expires_at:Date.now()+Number(auth.expires_in||2592000)*1000});await enterApp();return true}catch(err){clearSession();setNotice(`${err.message}${err.requestId?` Код: ${err.requestId}`:""}`,"error");return true}}
     $("loginTab").onclick=()=>switchAuth("login");$("registerTab").onclick=()=>switchAuth("register");
     $("regUsername").oninput=()=>$("regUsername").value=$("regUsername").value.toLowerCase().replace(/[^a-z0-9_]/g,"");
-    $("loginForm").onsubmit=async e=>{e.preventDefault();const btn=$("loginBtn");setBusy(btn,true,"Войти");try{const auth=await api("/api/auth/login",{method:"POST",auth:false,body:{identifier:$("loginIdentifier").value.trim().toLowerCase(),password:$("loginPassword").value}});const pending=JSON.parse(localStorage.getItem("wavero_pending_profile")||"{}");const sync=await api("/api/auth/sync",{method:"POST",auth:false,headers:{Authorization:`Bearer ${auth.id_token}`},body:{username:pending.username||"",display_name:pending.display_name||auth.firebase_user?.display_name||""}});saveSession({id_token:auth.id_token,refresh_token:auth.refresh_token,expires_at:Date.now()+Number(auth.expires_in||3600)*1000});localStorage.removeItem("wavero_pending_profile");await enterApp()}catch(err){setNotice(err.message,"error")}finally{setBusy(btn,false,"Войти")}};
+    $("loginForm").onsubmit=async e=>{e.preventDefault();const btn=$("loginBtn");setBusy(btn,true,"Войти");try{const auth=await api("/api/auth/login",{method:"POST",auth:false,body:{identifier:$("loginIdentifier").value.trim().toLowerCase(),password:$("loginPassword").value}});const pending=JSON.parse(localStorage.getItem("wavero_pending_profile")||"{}");const sync=await api("/api/auth/sync",{method:"POST",auth:false,headers:{Authorization:`Bearer ${auth.id_token}`},body:{username:pending.username||"",display_name:pending.display_name||auth.firebase_user?.display_name||""}});saveSession({id_token:auth.id_token,refresh_token:auth.refresh_token,auth_provider:"firebase",expires_at:Date.now()+Number(auth.expires_in||3600)*1000});localStorage.removeItem("wavero_pending_profile");await enterApp()}catch(err){setNotice(err.message,"error")}finally{setBusy(btn,false,"Войти")}};
     $("registerForm").onsubmit=async e=>{e.preventDefault();const btn=$("registerBtn");const p={display_name:$("regName").value.trim(),username:$("regUsername").value.trim(),email:$("regEmail").value.trim(),password:$("regPassword").value};[$("regNameError"),$("regUsernameError"),$("regEmailError"),$("regPasswordError")].forEach(x=>x.textContent="");let bad=false;if(!p.display_name){$("regNameError").textContent="Введите имя";bad=true}if(!/^[a-z0-9_]{4,24}$/.test(p.username)){$("regUsernameError").textContent="4–24 символа: латиница, цифры и _";bad=true}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)){$("regEmailError").textContent="Некорректный email";bad=true}if(p.password.length<8||!/\d/.test(p.password)){$("regPasswordError").textContent="Не менее 8 символов и одна цифра";bad=true}if(bad)return;setBusy(btn,true,"Создать аккаунт");try{await api("/api/auth/register",{method:"POST",auth:false,body:p});localStorage.setItem("wavero_pending_profile",JSON.stringify({username:p.username,display_name:p.display_name}));switchAuth("login");$("loginIdentifier").value=p.email;setNotice("Подтвердите email по ссылке из письма, затем войдите.","ok")}catch(err){setNotice(err.message,"error")}finally{setBusy(btn,false,"Создать аккаунт")}};
     $("resetBtn").onclick=()=>openModal("Восстановление пароля",`<form id="resetForm" class="form-grid"><label>Email<input id="resetEmail" type="email" placeholder="name@example.com"></label><button class="primary">Отправить письмо</button></form>`,()=>{$("resetForm").onsubmit=async e=>{e.preventDefault();try{const d=await api("/api/auth/reset-password",{method:"POST",auth:false,body:{email:$("resetEmail").value.trim()}});toast(d.message)}catch(err){toast(err.message,"error")}}});
-    function googleMessage(e){const c=e?.code||"";if(c==="auth/popup-closed-by-user")return"Вход отменён.";if(c==="auth/popup-blocked")return"Браузер заблокировал окно Google.";if(c==="auth/unauthorized-domain")return"Домен Wavero не разрешён в Firebase.";if(c==="auth/operation-not-allowed")return"Google-вход не включён в Firebase.";return e?.message||"Не удалось войти через Google."}
-    $("googleBtn").onclick=async()=>{const btn=$("googleBtn");if(!window.waveroGoogleAuth)return setNotice("Google ещё загружается. Повторите через несколько секунд.","error");setBusy(btn,true,"Продолжить через Google");try{const g=await window.waveroGoogleAuth.signIn();try{await finishGoogle(g,{})}catch(err){if(err.code!=="PROFILE_REQUIRED")throw err;openGoogleProfile(g)}}catch(err){const m=googleMessage(err);if(m!=="Вход отменён.")setNotice(m,"error")}finally{setBusy(btn,false,"Продолжить через Google")}};
-    async function finishGoogle(g,profile){const sync=await api("/api/auth/sync",{method:"POST",auth:false,headers:{Authorization:`Bearer ${g.id_token}`},body:profile});saveSession({id_token:g.id_token,refresh_token:g.refresh_token,expires_at:Date.now()+55*60*1000});closeModal();await enterApp()}
-    function openGoogleProfile(g){openModal("Завершите регистрацию",`<form id="googleProfileForm" class="form-grid"><p>Google подтвердил вашу почту. Выберите имя и username Wavero.</p><label>Имя<input id="googleName" maxlength="50" value="${escapeHtml(g.display_name)}"></label><label>Username<input id="googleUsername" maxlength="24" autocapitalize="none"></label><button class="primary">Продолжить</button></form>`,()=>{$("googleUsername").oninput=()=>$("googleUsername").value=$("googleUsername").value.toLowerCase().replace(/[^a-z0-9_]/g,"");$("googleProfileForm").onsubmit=async e=>{e.preventDefault();try{await finishGoogle(g,{display_name:$("googleName").value.trim(),username:$("googleUsername").value.trim()})}catch(err){toast(err.message,"error")}}})}
     async function enterApp(){const data=await api("/api/bootstrap");state.user=data.user;state.profile=data.profile;state.chats=data.chats||[];state.isAdmin=Boolean(data.is_admin);applyTheme(state.profile?.theme||"dark");$("authScreen").classList.add("hidden");$("appShell").classList.remove("hidden");$("adminBtn").classList.toggle("hidden",!state.isAdmin);renderChats();const invite=new URLSearchParams(location.search).get("invite");if(invite){try{const joined=await api(`/api/invites/${encodeURIComponent(invite)}/join`,{method:"POST",body:{}});history.replaceState({},"",location.pathname);await reloadChats();await openChat(joined.chat_id)}catch(err){toast(err.message,"error")}}}
     function applyTheme(t){const theme=t==="system"?(matchMedia("(prefers-color-scheme:light)").matches?"light":"dark"):t;document.body.classList.toggle("light",theme==="light");document.querySelector('meta[name="theme-color"]').content=theme==="light"?"#f3f3f0":"#050505"}
     async function reloadChats(){const d=await api("/api/me/chats");state.chats=d.chats||[];renderChats()}
@@ -233,9 +232,9 @@
     $("adminBtn").onclick=()=>openAdmin();
     async function openAdmin(q=""){try{const d=await api(`/api/admin/overview?q=${encodeURIComponent(q)}`);openModal("Администрирование",`<div class="stat-grid"><div class="stat"><b>${d.stats.users}</b><span>пользователей</span></div><div class="stat"><b>${d.stats.chats}</b><span>чатов</span></div><div class="stat"><b>${d.stats.messages}</b><span>сообщений</span></div><div class="stat"><b>${d.stats.open_reports}</b><span>жалоб</span></div></div><div class="section"><div class="inline"><input id="adminSearch" class="grow" value="${escapeHtml(q)}" placeholder="Поиск пользователей"><button id="adminSearchBtn" class="secondary">Найти</button></div><h3>Пользователи</h3><div class="admin-table">${(d.users||[]).map(u=>`<div class="admin-row"><div class="admin-row-head"><strong>${escapeHtml(u.display_name||u.username)}</strong><small>@${escapeHtml(u.username)} · ${escapeHtml(u.email||"")}</small></div><div class="admin-actions"><select data-admin-status="${escapeHtml(u.id)}"><option value="active" ${u.status==='active'?'selected':''}>Активен</option><option value="suspended" ${u.status==='suspended'?'selected':''}>Заблокирован</option><option value="deleted" ${u.status==='deleted'?'selected':''}>Удалён</option></select><select data-admin-role="${escapeHtml(u.id)}"><option value="user" ${u.role==='user'?'selected':''}>Пользователь</option><option value="moderator" ${u.role==='moderator'?'selected':''}>Модератор</option><option value="admin" ${u.role==='admin'?'selected':''}>Админ</option><option value="owner" ${u.role==='owner'?'selected':''}>Владелец</option></select><button class="secondary" data-admin-save="${escapeHtml(u.id)}">Сохранить</button></div></div>`).join("")}</div></div><div class="section"><h3>Жалобы</h3><div class="admin-table">${(d.reports||[]).map(r=>`<div class="admin-row"><div class="admin-row-head"><strong>${escapeHtml(r.reason)}</strong><small>${escapeHtml(r.target_type)} · ${escapeHtml(r.status)}</small></div><p>${escapeHtml(r.details||"")}</p><div class="admin-actions"><select data-report-status="${escapeHtml(r.id)}"><option value="open" ${r.status==='open'?'selected':''}>Открыта</option><option value="reviewing" ${r.status==='reviewing'?'selected':''}>Проверяется</option><option value="resolved" ${r.status==='resolved'?'selected':''}>Решена</option><option value="rejected" ${r.status==='rejected'?'selected':''}>Отклонена</option></select><button class="secondary" data-report-save="${escapeHtml(r.id)}">Сохранить</button></div></div>`).join("")||'<div class="empty-list">Жалоб нет</div>'}</div></div>`,()=>{$("adminSearchBtn").onclick=()=>openAdmin($("adminSearch").value);document.querySelectorAll("[data-admin-save]").forEach(b=>b.onclick=async()=>{const id=b.dataset.adminSave;const status=document.querySelector(`[data-admin-status="${CSS.escape(id)}"]`).value;const role=document.querySelector(`[data-admin-role="${CSS.escape(id)}"]`).value;try{await api(`/api/admin/users/${encodeURIComponent(id)}`,{method:"PATCH",body:{status,role}});toast("Пользователь обновлён")}catch(err){toast(err.message,"error")}});document.querySelectorAll("[data-report-save]").forEach(b=>b.onclick=async()=>{const id=b.dataset.reportSave;const status=document.querySelector(`[data-report-status="${CSS.escape(id)}"]`).value;try{await api(`/api/admin/reports/${encodeURIComponent(id)}`,{method:"PATCH",body:{status,resolution:"Обработано администратором"}});toast("Жалоба обновлена")}catch(err){toast(err.message,"error")}})})}catch(err){toast(err.message,"error")}}
     function openModal(title,html,ready){$("modalTitle").textContent=title;$("modalBody").innerHTML=html;$("modalFoot").classList.add("hidden");$("modal").classList.remove("hidden");setTimeout(()=>ready?.(),0)}function closeModal(){$("modal").classList.add("hidden");$("modalBody").innerHTML=""}$("modalClose").onclick=closeModal;$("modal").onclick=e=>{if(e.target===$("modal"))closeModal()};
-    $("logoutBtn").onclick=async()=>{clearInterval(state.poll);clearSession();await window.waveroGoogleAuth?.signOut?.().catch(()=>{});location.reload()};
-    async function restore(){const saved=JSON.parse(localStorage.getItem("wavero_session")||"null");if(!saved)return;if(saved.expires_at<Date.now()+30000){state.refreshToken=saved.refresh_token;if(!await refreshSession())return}else saveSession(saved);try{await enterApp()}catch{clearSession()}}
-    restore();
+    $("logoutBtn").onclick=async()=>{clearInterval(state.poll);try{await api("/api/auth/logout",{method:"POST",body:{}})}catch{}clearSession();location.reload()};
+    async function restore(){const saved=JSON.parse(localStorage.getItem("wavero_session")||"null");if(!saved)return;if(saved.expires_at<Date.now()+30000){state.refreshToken=saved.refresh_token||null;state.authProvider=saved.auth_provider||null;if(!await refreshSession())return}else saveSession(saved);try{await enterApp()}catch{clearSession()}}
+    (async()=>{const handled=await completeYandexLogin();if(!handled)await restore()})();
   </script>
 </body>
 </html>
