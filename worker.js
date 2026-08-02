@@ -126,14 +126,16 @@ CREATE INDEX IF NOT EXISTS idx_wavero_oauth_identity_user ON wavero_oauth_identi
 CREATE INDEX IF NOT EXISTS idx_wavero_access_sessions_user ON wavero_access_sessions(user_id, expires_at);
 CREATE INDEX IF NOT EXISTS idx_wavero_oauth_tickets_expiry ON wavero_oauth_tickets(expires_at, used_at);
 INSERT INTO wavero_meta(key, value, updated_at)
-VALUES ('schema_version', '1.0.3', CURRENT_TIMESTAMP)
+VALUES ('schema_version', '1.0.4', CURRENT_TIMESTAMP)
 ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;`;
 let schemaPromise = null;
 
 function schemaStatements() {
+  // D1 may interpret line breaks passed to DDL execution as separate SQL lines.
+  // Split by statement terminators and collapse every statement to one line.
   return EXTENSION_SCHEMA
-    .split(/;\s*(?:\n|$)/)
-    .map((statement) => statement.trim())
+    .split(";")
+    .map((statement) => statement.replace(/\s+/g, " ").trim())
     .filter(Boolean);
 }
 
@@ -178,7 +180,7 @@ export default {
       const url = new URL(request.url);
 
       if (request.method === "GET" && url.pathname === "/api/auth/yandex/start") return startYandexAuth(request, env);
-      if (request.method === "GET" && url.pathname === "/api/auth/yandex/callback") return yandexAuthCallback(request, env);
+      if (request.method === "GET" && url.pathname === "/api/auth/yandex/callback") return await yandexAuthCallback(request, env);
       if (request.method === "POST" && url.pathname === "/api/auth/yandex/complete") return completeYandexAuth(request, env);
       if (request.method === "POST" && url.pathname === "/api/auth/logout") return logoutSession(request, env);
 
@@ -190,7 +192,7 @@ export default {
             await ensureSchema(env);
             const meta = await env.DB.prepare("SELECT value FROM wavero_meta WHERE key='schema_version' LIMIT 1").first();
             schemaVersion = meta?.value || null;
-            schemaReady = schemaVersion === "1.0.3";
+            schemaReady = schemaVersion === "1.0.4";
           } catch (error) {
             console.error("WAVERO_HEALTH_SCHEMA", { requestId, message: error?.message, stack: error?.stack });
           }
@@ -198,7 +200,7 @@ export default {
         return json({
           ok: true,
           service: "wavero-api",
-          version: "1.0.3-yandex",
+          version: "1.0.4-yandex-sql-fix",
           schemaVersion,
           schemaReady,
           firebaseConfigured: Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID),
@@ -299,6 +301,15 @@ export default {
         message: error?.message,
         stack: error?.stack,
       });
+      const failedPath = new URL(request.url).pathname;
+      if (failedPath === "/api/auth/yandex/callback") {
+        const clearCookie = `${YANDEX_STATE_COOKIE}=; Max-Age=0; Path=/api/auth/yandex/callback; HttpOnly; Secure; SameSite=Lax`;
+        return redirectToApp(
+          request,
+          { yandex_error: String(code || "yandex_internal").toLowerCase(), request_id: requestId },
+          { "Set-Cookie": clearCookie }
+        );
+      }
       if (error instanceof ApiError) return json({ ok: false, code: error.code, error: error.message, request_id: requestId }, error.status);
       return json({ ok: false, code: "INTERNAL_ERROR", error: "Внутренняя ошибка сервера.", request_id: requestId }, 500);
     }
